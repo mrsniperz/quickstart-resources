@@ -1,0 +1,22 @@
+{
+    "mcpServers": {
+      "weather": {
+        "command": "D:\\Miniconda3\\Scripts\\uv.exe",
+        "args": [
+            "--directory",
+            "E:\\Projects\\cursor_mcp_demo\\quickstart-resources\\weather-server-python",
+            "run",
+            "mock_weather_server.py"
+        ]
+      },
+      "housing_prices": {
+        "command": "D:\\Miniconda3\\Scripts\\uv.exe",
+        "args": [
+            "--directory",
+            "E:\\Projects\\cursor_mcp_demo\\quickstart-resources\\weather-server-python",
+            "run",
+            "housing_prices.py"
+        ]
+      }
+    }
+  }

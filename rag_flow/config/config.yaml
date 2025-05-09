@@ -1,0 +1,58 @@
+# 项目配置文件
+
+# 应用配置
+app:
+  name: "python-project-template"
+  version: "0.1.0"
+  debug: true
+  log_level: "INFO"
+
+# 数据库配置
+database:
+  type: "sqlite"  # 可选：sqlite, mysql, postgresql
+  sqlite:
+    path: "data/database.db"
+  mysql:
+    host: "localhost"
+    port: 3306
+    user: "user"
+    password: "password"
+    database: "dbname"
+  postgresql:
+    host: "localhost"
+    port: 5432
+    user: "user"
+    password: "password"
+    database: "dbname"
+
+# 服务配置
+service:
+  host: "0.0.0.0"
+  port: 8000
+  workers: 4
+  timeout: 60
+
+# 安全配置
+security:
+  secret_key: "YOUR_SECRET_KEY"
+  token_expire_minutes: 60
+  allowed_hosts:
+    - "localhost"
+    - "127.0.0.1"
+
+# 缓存配置
+cache:
+  type: "memory"  # 可选：memory, redis
+  redis:
+    host: "localhost"
+    port: 6379
+    db: 0
+    password: ""
+
+# 日志配置
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/app.log"
+  max_size: 10  # MB
+  backup_count: 5 

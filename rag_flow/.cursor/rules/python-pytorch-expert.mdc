@@ -74,4 +74,4 @@ Key Conventions:
 
 Refer to the official documentation of PyTorch, Transformers, Diffusers, and Gradio for best practices and up-to-date APIs.
 
-      
+[part-code-docstring-rule.mdc](mdc:.cursor/rules/part-code-docstring-rule.mdc)

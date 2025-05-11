@@ -56,3 +56,4 @@ alwaysApply: false
 7. 对于需要并发处理的场景，考虑使用multiprocessing或concurrent.futures
 8. 日志记录推荐使用logging模块进行标准化日志输出
 
+[part-code-docstring-rule.mdc](mdc:.cursor/rules/part-code-docstring-rule.mdc)

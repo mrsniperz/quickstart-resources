@@ -1,0 +1,216 @@
+# Python代码生成规范与文档自动更新规则
+
+你是一个优秀的技术架构师和优秀的程序员，在进行架构分析、功能模块分析，以及进行编码的时候，请遵循如下规则：
+1. 分析问题和技术架构、代码模块组合等的时候请遵循“第一性原理”
+2. 在编码的时候，请遵循 “DRY原则”、“KISS原则”、“SOLID原则”、“YAGNI原则”
+
+## Python代码规范
+
+### 命名规范
+- 变量命名: 使用小写字母和下划线组合 (snake_case)，如 user_name, total_count
+- 函数命名: 使用小写字母和下划线组合 (snake_case)，如 get_user_info(), validate_input()
+- 类命名: 使用驼峰命名法 (CamelCase)，如 UserService, DatabaseHandler
+- 常量命名: 使用全大写字母和下划线组合，如 MAX_RETRY_COUNT, DEFAULT_TIMEOUT
+
+### 注释规范
+- 文件头注释应包含模块名称、功能描述、创建日期、作者和版本
+```python
+"""
+模块名称: user_service
+功能描述: 提供用户管理相关功能，包括用户注册、登录、信息修改等
+创建日期: [YYYY-MM-DD]
+作者: Sniperz
+版本: v1.0.0
+"""
+```
+
+- 函数注释应包含功能描述、参数说明、返回值说明和可能的异常
+```python
+def get_user_by_id(user_id, include_deleted=False):
+    """
+    根据用户ID获取用户信息
+    
+    Args:
+        user_id (int): 用户唯一标识
+        include_deleted (bool, optional): 是否包含已删除用户，默认为False
+        
+    Returns:
+        dict: 用户信息字典，包含id、name、email等字段
+            
+    Raises:
+        ValueError: 当user_id不是正整数时
+        UserNotFoundError: 当用户不存在时
+    """
+```
+
+- 类注释应包含类的功能描述和属性说明
+```python
+class UserService:
+    """
+    用户服务类，提供用户相关的业务逻辑处理
+    
+    Attributes:
+        db_connection (Connection): 数据库连接对象
+        logger (Logger): 日志记录器
+    """
+```
+
+### 错误处理规范
+- 使用明确的异常类型，避免捕获所有异常
+```python
+# 推荐
+try:
+    result = process_data(data)
+except ValueError as e:
+    logger.error(f"数据格式错误: {e}")
+except ConnectionError as e:
+    logger.error(f"连接失败: {e}")
+```
+
+- 提供有意义的错误信息
+- 使用上下文管理器处理资源
+```python
+# 推荐
+with open('data.txt', 'r') as file:
+    content = file.read()
+```
+
+- 记录异常信息，便于调试和监控
+
+### 日志记录规范
+- 使用适当的日志级别：DEBUG, INFO, WARNING, ERROR, CRITICAL
+```python
+# DEBUG: 详细的调试信息
+logger.debug(f"处理请求参数: {params}")
+
+# INFO: 常规操作信息
+logger.info(f"用户 {user_id} 登录成功")
+
+# ERROR: 错误但程序可以继续运行
+logger.error(f"数据库连接失败: {e}")
+```
+
+- 记录关键操作和错误信息
+- 包含必要的上下文信息
+
+### 代码结构规范
+- 导入组织：标准库、第三方库、本地应用/库，每组间空行分隔
+```python
+# 标准库
+import os
+import sys
+import json
+
+# 第三方库
+import requests
+import pandas as pd
+
+# 本地应用/库
+from app.models import User
+from app.utils.helpers import format_date
+```
+
+- 类方法组织：__init__方法、@property方法、@classmethod方法、实例方法、私有方法
+```python
+class DataProcessor:
+    # __init__方法
+    def __init__(self, config):
+        self.config = config
+        self.data = None
+    
+    # @property方法
+    @property
+    def is_processed(self):
+        return self._processed
+    
+    # 实例方法
+    def process(self):
+        if not self.data:
+            raise ValueError("No data loaded")
+        self.data = self._transform_data(self.data)
+        return self.data
+    
+    # 私有方法
+    def _transform_data(self, data):
+        # 数据转换逻辑
+        return data
+```
+
+## 文档自动更新规则
+
+### 文档路径与存储位置
+所有文档将存放于 `.cursor/docs/` 目录下。如果文档不存在，需要主动创建。这确保了文档的一致性和可访问性。
+
+### 文档清单与更新指南
+
+1. **`.cursor/docs/README.md` (项目总览)**
+   - 用途: 项目的核心介绍、主要功能模块、架构概述、安装部署指南、使用方法等
+   - 更新时机: 项目架构变化、功能模块变更、安装配置变动、依赖库更新
+
+2. **`.cursor/docs/CHANGELOG.md` (变更日志)**
+   - 用途: 记录项目的所有重要变更
+   - 更新时机: 每次完成导致代码或功能变动的任务后
+   - 更新格式:
+     ```markdown
+     ## [版本号或日期 YYYY-MM-DD]
+
+     ### 新增 ✨
+     - [模块/功能]: 描述新增的具体功能或特性
+       *影响范围：描述此新增对哪些部分产生了影响。*
+
+     ### 修复 🐛
+     - [模块/问题]: 描述修复的具体问题。
+       *原因：简述问题产生的原因（可选）。*
+
+     ### 优化 🚀
+     - [模块/方面]: 描述进行的优化及其带来的改进。
+
+     ### 变更 ⚠️
+     - [模块/功能]: 描述发生的变更，特别是破坏性变更或重要调整。
+     ```
+
+3. **`.cursor/docs/API_DOC.md` (API接口文档)**
+   - 用途: 详细描述项目提供的所有API接口，包括请求方法、URL、参数、请求体、响应体、认证方式等
+   - 更新时机:
+     - 新增API接口
+     - 修改现有API接口（如参数、路径、请求/响应结构、认证方式变更）
+     - 废弃或移除API接口
+   - 更新要点: 确保API文档的准确性和完整性，包含清晰的请求和响应示例
+
+4. **`.cursor/docs/FEATURE_PROGRESS.md` (功能进展清单)**
+   - 用途: 跟踪和记录项目中各项功能的开发状态
+   - 更新时机: 规划新功能、开始开发功能、完成功能开发
+   - 更新格式:
+     ```markdown
+     # 功能进展清单
+
+     ## 核心功能
+     - [x] 功能A (完成日期: YYYY-MM-DD)
+     - [ ] 功能B (进行中)
+     - [ ] 功能C (待办)
+
+     ## 模块X
+     - [x] 子功能1 (完成日期: YYYY-MM-DD)
+     - [ ] 子功能2 (进行中)
+     ```
+
+5. **`.cursor/docs/ARCHITECTURE.md` (架构文档)**
+   - 用途: 描述项目的整体架构、模块划分、技术选型、数据流等
+   - 更新时机: 架构调整、模块重组、技术栈变更
+   - 更新要点: 包含架构图、模块关系图、数据流图等可视化内容
+
+6. **`.cursor/docs/DEPLOYMENT.md` (部署文档)**
+   - 用途: 详细描述项目的部署步骤、环境要求、配置说明等
+   - 更新时机: 部署流程变更、环境要求调整、配置项变动
+   - 更新要点: 提供完整的部署步骤、环境检查清单、常见问题解决方案
+
+7. 每个功能模块的 `README.md` 文件，放置在各自模块目录下
+   - 用途: 描述每个功能模块的详细设计、实现细节、使用方法等
+   - 更新时机: 模块设计变更、实现细节更新、使用方法调整
+   - 更新要点: 包含模块功能描述、类图、时序图等可视化内容
+
+### 执行流程
+1. 分析变更: 理解操作对代码、功能、API等方面带来的具体变化
+2. 对照规则: 判断哪些文档需要更新
+3. 执行更新: 按照每个文档的格式和要求，进行内容的添加或修改
+4. 确保一致性: 检查文档间的引用和交叉链接是否正确

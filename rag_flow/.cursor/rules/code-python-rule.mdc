@@ -1,0 +1,173 @@
+---
+description: 创建和修改python代码时使用的规则
+globs: 
+alwaysApply: false
+---
+# Python代码生成规范
+
+> 最后更新: 2025-06-02
+> 版本: 1.0.3
+
+你是一个优秀的技术架构师和优秀的程序员，在进行架构分析、功能模块分析，以及进行编码的时候，请遵循如下规则：
+1. 分析问题和技术架构、代码模块组合等的时候请遵循“第一性原理”
+2. 在编码的时候，请遵循 “DRY原则”、“KISS原则”、“SOLID原则”、“YAGNI原则”
+
+## 项目文档及迭代要求
+- 在开始执行前，首先仔细阅读项目.cursor/docs目录下的文件并理解其内容，包括项目的目标、功能架构、技术栈和开发计划、更新日志等，确保对项目的整体架构和实现方式有清晰的认识；
+
+
+## 目录结构
+project_name/
+├── docs/ # 项目文档
+├── src/ # 源代码
+│ ├── core/ # 核心功能
+│ ├── utils/ # 工具函数
+│ └── tests/ # 测试文件
+├── scripts/ # 脚本文件
+└── config/ # 配置文件
+
+### 组织原则
+- 保持项目结构清晰，遵循模块化原则
+- 相关功能应放在同一目录下
+- 使用适当的目录命名，反映其包含内容
+
+## 1. 命名规范
+
+### 1.1 变量命名
+- 使用小写字母和下划线组合 (snake_case)
+- 示例: `user_name`, `total_count`
+
+### 1.2 函数命名
+- 使用小写字母和下划线组合 (snake_case)
+- 示例: `get_user_info()`, `validate_input()`
+
+### 1.3 类命名
+- 使用驼峰命名法 (CamelCase)
+- 示例: `UserService`, `DatabaseHandler`
+
+### 1.4 常量命名
+- 使用全大写字母和下划线组合
+- 示例: `MAX_RETRY_COUNT`, `DEFAULT_TIMEOUT`
+
+## 2. 注释规范
+
+### 2.1 文件头注释
+```python
+"""
+模块名称: service.py
+功能描述: 用户服务模块，处理用户相关业务逻辑
+创建日期: 2025-05-24
+作者: Sniperz
+版本: 1.0.0
+"""
+```
+
+### 2.2 函数注释
+```python
+def calculate_score(user_id: int) -> float:
+    """
+    计算用户综合评分
+    
+    Args:
+        user_id: 用户唯一标识ID
+        
+    Returns:
+        float: 计算后的用户评分(0-100)
+        
+    Raises:
+        ValueError: 当用户ID无效时抛出
+    """
+```
+
+### 2.3 类注释
+```python
+class UserManager:
+    """
+    用户管理类，负责用户CRUD操作
+    
+    Attributes:
+        db_conn: 数据库连接实例
+        cache: Redis缓存实例
+    """
+```
+
+### 2.4 代码块注释
+```python
+# 区域: 数据验证
+# 目的: 验证用户输入是否符合业务规则
+```
+
+## 3. 报错处理规范
+
+- 使用明确的异常类型，避免捕获所有异常
+- 提供有意义的错误信息
+- 使用上下文管理器（with语句）处理资源
+- 记录异常信息，便于调试和监控
+- 在适当的抽象层次处理异常，不要过早捕获
+
+### 3.1 错误类型定义
+```python
+class APIError(Exception):
+    """基础API错误类"""
+    def __init__(self, code: int, message: str):
+        self.code = code
+        self.message = message
+
+class InvalidInputError(APIError):
+    """输入参数错误"""
+```
+
+### 3.2 错误处理示例
+
+```python
+try:
+    validate_input(data)
+except InvalidInputError as e:
+    logger.error(f"输入验证失败: {e}")
+    raise HTTPException(status_code=400, detail=str(e))
+```
+
+## 4. 日志记录规范
+
+### 4.1 日志配置
+使用 [SZ_LoggerManager.py](mdc:xml_parser/xml_parser/project/SZ_LoggerManager.py) 统一配置管理
+
+### 4.2 日志级别使用
+- DEBUG: 调试信息
+- INFO: 常规操作记录
+- WARNING: 潜在问题
+- ERROR: 严重错误但程序仍可运行
+- CRITICAL: 致命错误
+
+### 4.3 日志记录示例
+```python
+logger.info(f"开始处理用户请求: {user_id}")
+logger.warning("缓存未命中，从数据库查询")
+logger.error(f"数据库连接失败: {str(e)}")
+```
+
+## 5. 代码结构规范
+
+### 5.1 导入组织
+
+- 按以下顺序分组导入：标准库、第三方库、本地应用/库
+- 每组之间用空行分隔
+- 每组内按字母顺序排序
+- 避免使用通配符导入（from module import *）
+- 显式导入所需模块，不要依赖间接导入
+- 使用绝对导入，避免相对导入带来的混淆
+- 将所有导入放在文件顶部，避免在函数或条件语句中导入
+
+### 5.2 类方法组织
+1. `__init__` 方法
+2. @property 方法
+3. @classmethod 方法
+4. 实例方法
+5. 私有方法(_prefix)
+
+## 6. 最佳实践
+
+1. 单一职责原则: 每个函数/类只做一件事
+2. DRY原则: 避免重复代码
+3. 防御性编程: 验证所有输入
+4. 类型提示: 为所有函数添加类型注解

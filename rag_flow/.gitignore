@@ -1,0 +1,19 @@
+*.dtd
+test_data/
+*.xml
+*.xsl
+*.sgml
+# 过滤所有的Python缓存文件
+__pycache__/
+*.sgm
+*.sdl
+*.dtd
+*.cfe
+*.sge
+*.sne
+*.sce
+*.swe
+catalog
+*.log
+logs/
+*.pdf

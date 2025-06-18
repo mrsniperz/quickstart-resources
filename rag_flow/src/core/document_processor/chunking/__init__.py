@@ -10,10 +10,12 @@ from .chunking_engine import ChunkingEngine
 from .aviation_strategy import AviationChunkingStrategy
 from .semantic_chunker import SemanticChunker
 from .structure_chunker import StructureChunker
+from .recursive_chunker import RecursiveCharacterChunker
 
 __all__ = [
     'ChunkingEngine',
     'AviationChunkingStrategy',
     'SemanticChunker',
     'StructureChunker',
+    'RecursiveCharacterChunker',
 ]

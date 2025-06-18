@@ -1,0 +1,107 @@
+version: '3.8'
+
+services:
+  docling-processor:
+    build:
+      context: ../../
+      dockerfile: deploy/docker/Dockerfile
+    container_name: docling-document-processor
+    restart: unless-stopped
+    
+    # 环境变量
+    environment:
+      - PYTHONPATH=/app
+      - DOCLING_ARTIFACTS_PATH=/app/models
+      - LOG_LEVEL=INFO
+    
+    # 卷挂载
+    volumes:
+      # 配置文件
+      - ../../config:/app/config:ro
+      # 模型缓存（持久化）
+      - docling_models:/app/models
+      # 处理缓存
+      - docling_cache:/app/cache
+      # 日志
+      - docling_logs:/app/logs
+      # 输入文档目录（可选）
+      - ./input:/app/input
+      # 输出目录（可选）
+      - ./output:/app/output
+    
+    # 端口映射（如果需要Web服务）
+    ports:
+      - "8000:8000"
+    
+    # 资源限制
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2.0'
+        reservations:
+          memory: 2G
+          cpus: '1.0'
+    
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "python", "-c", "from parsers.docling_parser import DoclingParser; print('OK')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    # 日志配置
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+
+  # Redis缓存（可选）
+  redis:
+    image: redis:7-alpine
+    container_name: docling-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+
+  # 监控服务（可选）
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: docling-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+
+volumes:
+  docling_models:
+    driver: local
+  docling_cache:
+    driver: local
+  docling_logs:
+    driver: local
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+
+networks:
+  default:
+    name: docling-network

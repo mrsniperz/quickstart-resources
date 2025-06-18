@@ -1,0 +1,161 @@
+# Docling文档处理器配置文件
+# 用于生产环境部署
+
+# 全局配置
+global:
+  # 是否启用Docling解析器
+  use_docling: true
+  
+  # 对于共同支持的格式（PDF、Word等）是否优先使用Docling
+  prefer_docling_for_common_formats: false
+  
+  # 日志级别
+  log_level: "INFO"
+  
+  # 最大并发处理数
+  max_concurrent_processes: 4
+
+# Docling解析器配置
+docling:
+  # OCR配置
+  ocr:
+    enabled: true
+    # OCR引擎选择: easyocr, tesseract
+    engine: "easyocr"
+    # 支持的语言
+    languages: ["zh", "en"]
+  
+  # 表格结构识别
+  table_structure:
+    enabled: true
+    # 表格识别模式: fast, accurate
+    mode: "accurate"
+  
+  # 图片处理
+  image_processing:
+    # 是否生成图片
+    generate_images: true
+    # 图片缩放比例
+    scale: 2
+    # 是否启用图片描述
+    enable_description: false
+    # 图片描述模型（如果启用）
+    description_model: "HuggingFaceTB/SmolVLM-256M-Instruct"
+  
+  # 公式识别
+  formula:
+    enabled: true
+    # 输出格式: latex, mathml
+    output_format: "latex"
+  
+  # 代码识别
+  code:
+    enabled: true
+    # 是否自动检测编程语言
+    auto_detect_language: true
+  
+  # 性能限制
+  limits:
+    # 最大页数限制（null表示无限制）
+    max_pages: null
+    # 最大文件大小（字节，null表示无限制）
+    max_file_size: 104857600  # 100MB
+    # 处理超时时间（秒）
+    timeout: 300
+  
+  # 模型配置
+  models:
+    # 模型文件路径（null表示使用默认路径）
+    artifacts_path: null
+    # 是否允许远程服务
+    enable_remote_services: false
+    # 模型下载镜像（可选）
+    mirror_url: null
+
+# 传统解析器配置（向后兼容）
+traditional_parsers:
+  pdf:
+    extract_images: true
+    extract_tables: true
+    preserve_layout: true
+    ocr_enabled: false
+  
+  word:
+    preserve_formatting: true
+    extract_tables: true
+    extract_headers_footers: false
+  
+  excel:
+    read_only: true
+    data_only: true
+    max_rows: 10000
+    max_cols: 100
+  
+  powerpoint:
+    extract_notes: true
+    extract_shapes: true
+    preserve_slide_structure: true
+
+# 输出配置
+output:
+  # 默认输出格式
+  default_format: "markdown"
+  
+  # Markdown配置
+  markdown:
+    # 表格格式
+    table_format: "github"
+    # 代码块语言标记
+    code_language_detection: true
+    # 图片占位符
+    image_placeholder: "![图片]({image_path})"
+  
+  # 元数据包含项
+  metadata:
+    include_file_info: true
+    include_processing_info: true
+    include_statistics: true
+
+# 错误处理
+error_handling:
+  # 是否在批量处理时遇到错误继续处理
+  continue_on_error: true
+  
+  # 重试配置
+  retry:
+    max_attempts: 3
+    delay_seconds: 1
+    backoff_factor: 2
+  
+  # 错误日志
+  log_errors: true
+  error_log_file: "docling_errors.log"
+
+# 缓存配置
+cache:
+  # 是否启用缓存
+  enabled: false
+  
+  # 缓存目录
+  cache_dir: "./cache"
+  
+  # 缓存过期时间（秒）
+  expire_time: 3600
+  
+  # 最大缓存大小（MB）
+  max_size: 1024
+
+# 监控配置
+monitoring:
+  # 是否启用性能监控
+  enabled: true
+  
+  # 统计信息收集
+  collect_stats: true
+  
+  # 性能指标
+  metrics:
+    - "processing_time"
+    - "file_size"
+    - "success_rate"
+    - "error_rate"

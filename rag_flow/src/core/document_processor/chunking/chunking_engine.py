@@ -7,7 +7,7 @@
 """
 
 import logging
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, List, Optional, Any
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
@@ -104,7 +104,7 @@ class ChunkingEngine:
         self.logger = logging.getLogger(__name__)
         
         # 配置参数
-        self.default_strategy = self.config.get('default_strategy', 'semantic')
+        self.default_strategy = self.config.get('default_strategy', 'recursive')
         self.chunk_size = self.config.get('chunk_size', 1000)
         self.chunk_overlap = self.config.get('chunk_overlap', 200)
         self.min_chunk_size = self.config.get('min_chunk_size', 100)
@@ -216,12 +216,14 @@ class ChunkingEngine:
             elif doc_type == 'pdf' or file_extension == '.pdf':
                 return 'structure'
             elif doc_type in ['word', 'docx'] or file_extension in ['.docx', '.doc']:
-                return 'semantic'
+                return 'recursive'  # Word文档使用递归分块器
+            elif doc_type in ['text', 'txt'] or file_extension in ['.txt', '.md']:
+                return 'recursive'  # 纯文本使用递归分块器
             elif doc_type in ['excel', 'xlsx'] or file_extension in ['.xlsx', '.xls']:
                 return 'table'
             elif doc_type in ['powerpoint', 'pptx'] or file_extension in ['.pptx', '.ppt']:
                 return 'slide'
-            
+
             # 默认策略
             return self.default_strategy
             
@@ -367,6 +369,7 @@ class ChunkingEngine:
         try:
             from .semantic_chunker import SemanticChunker
             from .structure_chunker import StructureChunker
+            from .recursive_chunker import RecursiveCharacterChunker
             from .aviation_strategy import (
                 AviationMaintenanceStrategy,
                 AviationRegulationStrategy,
@@ -377,6 +380,7 @@ class ChunkingEngine:
             # 注册基础策略
             self.register_strategy('semantic', SemanticChunker(self.config))
             self.register_strategy('structure', StructureChunker(self.config))
+            self.register_strategy('recursive', RecursiveCharacterChunker(self.config))
 
             # 注册航空专用策略
             self.register_strategy('aviation_maintenance', AviationMaintenanceStrategy(self.config))

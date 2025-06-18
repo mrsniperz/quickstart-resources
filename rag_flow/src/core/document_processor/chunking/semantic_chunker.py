@@ -115,7 +115,7 @@ class SemanticChunker(ChunkingStrategy):
             text = re.sub(r'\r\n|\r', '\n', text)
             
             # 处理特殊字符
-            text = re.sub(r'[""''""''„"‚']', '"', text)
+            text = re.sub(r'[""\'\'""\'\'„"‚"]', '"', text)
             text = re.sub(r'[–—]', '-', text)
             
             # 标准化空格

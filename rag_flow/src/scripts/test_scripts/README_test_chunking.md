@@ -114,6 +114,19 @@ python src/scripts/test_scripts/test_chunking_complete.py --compare -t "测试�
 ```
 同时使用多种策略处理同一文档，并对比效果。
 
+#### 7. 质量评分控制（仅完整版）
+```bash
+# 使用特定质量评估策略
+python src/scripts/test_scripts/test_chunking_complete.py -t "测试文本" --quality-strategy technical
+
+# 禁用质量评分功能
+python src/scripts/test_scripts/test_chunking_complete.py -t "测试文本" --disable-quality-assessment
+
+# 详细验证质量评分结果
+python src/scripts/test_scripts/test_chunking_complete.py -t "测试文本" --validate
+```
+控制质量评分功能和查看详细的质量评分结果。
+
 ### 高级用法
 
 #### 自定义分块参数
@@ -203,6 +216,8 @@ python src/scripts/test_scripts/test_chunking.py -t "测试文本" --quiet
 | `--chunk-overlap` | - | int | 200 | 重叠大小（字符数） | `--chunk-overlap 100` | 两个版本 |
 | `--min-chunk-size` | - | int | 100 | 最小分块大小 | `--min-chunk-size 50` | 两个版本 |
 | `--max-chunk-size` | - | int | 2000 | 最大分块大小 | `--max-chunk-size 1500` | 两个版本 |
+| `--disable-quality-assessment` | - | flag | False | 禁用质量评分 | `--disable-quality-assessment` | 仅完整版 |
+| `--quality-strategy` | - | choice | aviation | 质量评估策略 | `--quality-strategy general` | 仅完整版 |
 
 ### RecursiveCharacterChunker 特有参数
 
@@ -214,6 +229,13 @@ python src/scripts/test_scripts/test_chunking.py -t "测试文本" --quiet
 | `--no-keep-separator` | - | flag | False | 不保留分隔符 | `--no-keep-separator` | 仅完整版 |
 | `--add-start-index` | - | flag | False | 添加起始索引信息 | `--add-start-index` | 仅完整版 |
 | `--no-strip-whitespace` | - | flag | False | 不去除空白字符 | `--no-strip-whitespace` | 仅完整版 |
+
+### 质量评分配置参数
+
+| 参数 | 简写 | 类型 | 默认值 | 说明 | 示例 | 支持版本 |
+|------|------|------|--------|------|------|----------|
+| `--disable-quality-assessment` | - | flag | False | 禁用质量评分功能 | `--disable-quality-assessment` | 仅完整版 |
+| `--quality-strategy` | - | choice | aviation | 质量评估策略 | `--quality-strategy general` | 仅完整版 |
 
 ### 功能控制参数
 
@@ -327,6 +349,12 @@ python src/scripts/test_scripts/test_chunking_complete.py --compare -i doc.txt
 
 # 测试自定义分隔符效果
 python src/scripts/test_scripts/test_chunking_complete.py -t "测试文本" --separators "。" "！" --chunk-size 50
+
+# 测试不同质量评估策略
+python src/scripts/test_scripts/test_chunking_complete.py -t "测试文本" --quality-strategy general
+
+# 禁用质量评分功能
+python src/scripts/test_scripts/test_chunking_complete.py -t "测试文本" --disable-quality-assessment
 ```
 
 ### 2. 性能优化场景
@@ -363,6 +391,13 @@ python src/scripts/test_scripts/test_chunking_complete.py --show-separators
 
 # 展示RecursiveCharacterChunker高级功能
 python src/scripts/test_scripts/test_chunking_complete.py -t "第一段。第二段！第三段？" --separators "。" "！" "？" --chunk-size 15
+
+# 展示不同质量评估策略的效果
+python src/scripts/test_scripts/test_chunking_complete.py -t "测试文本" --quality-strategy technical --validate
+
+# 对比启用和禁用质量评分的效果
+python src/scripts/test_scripts/test_chunking_complete.py --compare -t "测试文本"
+python src/scripts/test_scripts/test_chunking_complete.py --compare -t "测试文本" --disable-quality-assessment
 ```
 
 ## 故障排除
@@ -610,6 +645,41 @@ Response Formatting (JSON/Protobuf)
 2. 确认RAG Flow环境配置正确
 3. 检查输入文件格式和编码
 4. 尝试使用演示模式验证基础功能
+
+## 质量评分功能
+
+### 质量评分概述
+
+RAG Flow 的分块引擎内置了质量评分功能，用于评估每个分块的质量。质量评分是一个0到1之间的浮点数，值越高表示质量越好。质量评分考虑以下因素：
+
+1. **分块大小**：是否在理想范围内
+2. **内容密度**：文本内容的信息密度
+3. **结构完整性**：段落、句子结构是否完整
+4. **上下文连贯性**：与相邻分块的连贯程度
+
+### 质量评估策略
+
+系统提供三种质量评估策略：
+
+1. **aviation**（默认）：针对航空领域文档优化的评估策略
+2. **general**：通用文档的评估策略
+3. **technical**：技术文档的评估策略
+
+### 使用示例
+
+```bash
+# 使用默认质量评估策略（aviation）
+python src/scripts/test_scripts/test_chunking_complete.py -t "测试文本"
+
+# 使用general质量评估策略
+python src/scripts/test_scripts/test_chunking_complete.py -t "测试文本" --quality-strategy general
+
+# 禁用质量评分功能
+python src/scripts/test_scripts/test_chunking_complete.py -t "测试文本" --disable-quality-assessment
+
+# 查看质量评分详细结果
+python src/scripts/test_scripts/test_chunking_complete.py -t "测试文本" --validate
+```
 
 ---
 

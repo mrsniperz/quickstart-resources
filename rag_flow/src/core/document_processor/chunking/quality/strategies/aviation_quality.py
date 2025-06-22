@@ -1,80 +1,195 @@
-#!/usr/bin/env python3
 """
-简化的分块质量评估测试
-
-功能描述: 直接测试质量评估方法，避免依赖问题
+模块名称: aviation_quality
+功能描述: 航空领域专用质量评估策略，针对航空文档的特殊需求进行优化
 创建日期: 2024-01-15
 作者: Sniperz
 版本: v1.0.0
 """
 
-import sys
-import os
-import logging
-from dataclasses import dataclass
-from typing import Optional, List, Dict, Any
-from enum import Enum
+import re
+import time
+from typing import Dict, List, Optional, Any
+from ..base import QualityAssessmentStrategy, QualityMetrics
 
-# 简化的数据结构定义
-class ChunkType(Enum):
-    """分块类型枚举"""
-    PARAGRAPH = "paragraph"
-    SECTION = "section"
-    CHAPTER = "chapter"
-    LIST = "list"
-    TABLE = "table"
-    CODE = "code"
-    MAINTENANCE_MANUAL = "maintenance_manual"
-    REGULATION = "regulation"
-    TECHNICAL_STANDARD = "technical_standard"
-    TRAINING_MATERIAL = "training_material"
-    OPERATION_PROCEDURE = "operation_procedure"
+# 为了避免循环导入，我们在这里处理TextChunk和ChunkMetadata的导入
+try:
+    from ...chunking_engine import TextChunk, ChunkMetadata
+except ImportError:
+    # 如果无法导入，使用base中的简化版本
+    from ..base import TextChunk
 
-@dataclass
-class ChunkMetadata:
-    """分块元数据"""
-    chunk_id: str
-    chunk_type: ChunkType
-    source_document: str
-    page_number: Optional[int] = None
-    section_title: Optional[str] = None
-    start_position: Optional[int] = None
-    end_position: Optional[int] = None
-    parent_chunk_id: Optional[str] = None
-    child_chunk_ids: List[str] = None
-    confidence_score: float = 1.0
-    processing_timestamp: Optional[str] = None
+    class ChunkMetadata:
+        def __init__(self, **kwargs):
+            for key, value in kwargs.items():
+                setattr(self, key, value)
 
-@dataclass
-class TextChunk:
-    """文本分块数据类"""
-    content: str
-    metadata: ChunkMetadata
-    word_count: int = 0
-    character_count: int = 0
-    overlap_content: Optional[str] = None
-    quality_score: float = 0.0
 
-# 简化的质量评估器类
-class QualityAssessmentEngine:
-    """质量评估引擎"""
+class AviationQualityAssessment(QualityAssessmentStrategy):
+    """
+    航空领域质量评估策略
+    
+    专门针对航空文档的特殊需求设计，包括：
+    - 航空术语完整性检查
+    - 安全信息完整性验证
+    - 操作步骤连贯性评估
+    - 技术参数准确性检查
+    """
     
     def __init__(self, config: Optional[Dict[str, Any]] = None):
-        self.config = config or {}
-        self.logger = logging.getLogger(__name__)
+        """
+        初始化航空质量评估策略
         
-        # 配置参数
-        self.chunk_size = self.config.get('chunk_size', 1000)
+        Args:
+            config: 配置参数
+                - weights: 各维度权重配置
+                - min_chunk_size: 最小分块大小
+                - max_chunk_size: 最大分块大小
+                - chunk_size: 目标分块大小
+        """
+        super().__init__(config)
+        
+        # 默认权重配置（针对航空文档优化）
+        default_weights = {
+            'aviation_specific': 0.25,
+            'semantic_completeness': 0.25,
+            'information_density': 0.25,
+            'structure_quality': 0.20,
+            'size_appropriateness': 0.05
+        }
+        
+        self.weights = self.config.get('weights', default_weights)
         self.min_chunk_size = self.config.get('min_chunk_size', 100)
         self.max_chunk_size = self.config.get('max_chunk_size', 2000)
+        self.chunk_size = self.config.get('chunk_size', 1000)
+        
+        # 航空术语库
+        self.aviation_terms = [
+            '发动机', '液压系统', '燃油系统', '电气系统', '起落架',
+            '飞行控制', '导航系统', '通信系统', '客舱', '货舱',
+            'engine', 'hydraulic', 'fuel system', 'electrical', 'landing gear',
+            'flight control', 'navigation', 'communication', 'cabin', 'cargo'
+        ]
+        
+        # 安全关键词
+        self.safety_keywords = [
+            '警告', '注意', '危险', '禁止', '必须',
+            'warning', 'caution', 'danger', 'prohibited', 'must'
+        ]
+    
+    def get_strategy_name(self) -> str:
+        """获取策略名称"""
+        return "aviation"
+    
+    def get_supported_dimensions(self) -> List[str]:
+        """获取支持的评估维度"""
+        return [
+            'aviation_specific',
+            'semantic_completeness',
+            'information_density',
+            'structure_quality',
+            'size_appropriateness'
+        ]
+    
+    def assess_quality(self, chunk: TextChunk, context: Optional[Dict[str, Any]] = None) -> QualityMetrics:
+        """
+        评估分块质量
+        
+        Args:
+            chunk: 待评估的文本分块
+            context: 评估上下文信息
+            
+        Returns:
+            QualityMetrics: 质量评估结果
+        """
+        try:
+            start_time = time.time()
+            
+            if not self.validate_chunk(chunk):
+                return QualityMetrics(
+                    overall_score=0.0,
+                    dimension_scores={},
+                    confidence=0.0,
+                    details={'error': 'Invalid chunk'},
+                    strategy_name=self.get_strategy_name()
+                )
+            
+            # 特殊情况处理
+            if not chunk.content.strip():
+                return QualityMetrics(
+                    overall_score=0.0,
+                    dimension_scores={},
+                    confidence=1.0,
+                    details={'reason': 'Empty content'},
+                    strategy_name=self.get_strategy_name()
+                )
+            
+            if chunk.character_count < 10:
+                return QualityMetrics(
+                    overall_score=0.1,
+                    dimension_scores={'size_appropriateness': 0.1},
+                    confidence=1.0,
+                    details={'reason': 'Content too short'},
+                    strategy_name=self.get_strategy_name()
+                )
+            
+            # 根据文档类型获取权重配置
+            weights = self._get_quality_weights(chunk.metadata)
+            
+            # 计算各维度评分
+            dimension_scores = {}
+            dimension_scores['aviation_specific'] = self._calculate_aviation_specific_score(chunk)
+            dimension_scores['semantic_completeness'] = self._calculate_semantic_completeness_score(chunk)
+            dimension_scores['information_density'] = self._calculate_information_density_score(chunk)
+            dimension_scores['structure_quality'] = self._calculate_structure_quality_score(chunk)
+            dimension_scores['size_appropriateness'] = self._calculate_size_appropriateness_score(chunk)
+            
+            # 加权计算总分
+            total_score = sum(
+                score * weights.get(dimension, 0.0)
+                for dimension, score in dimension_scores.items()
+            )
+            
+            # 应用惩罚机制
+            penalty = self._calculate_penalty(chunk)
+            final_score = max(0.1, total_score - penalty)
+            
+            processing_time = (time.time() - start_time) * 1000
+            
+            return QualityMetrics(
+                overall_score=round(min(1.0, final_score), 3),
+                dimension_scores=dimension_scores,
+                confidence=0.9,
+                details={
+                    'weights_used': weights,
+                    'penalty_applied': penalty,
+                    'chunk_length': chunk.character_count,
+                    'word_count': chunk.word_count or len(chunk.content.split())
+                },
+                strategy_name=self.get_strategy_name(),
+                processing_time=processing_time
+            )
+            
+        except Exception as e:
+            self.logger.error(f"航空质量评估失败: {e}")
+            return self.get_fallback_metrics(chunk, e)
     
     def _get_quality_weights(self, metadata: ChunkMetadata) -> Dict[str, float]:
-        """根据文档类型获取质量评估权重配置"""
+        """
+        根据文档类型获取质量评估权重配置
+        
+        Args:
+            metadata: 分块元数据
+            
+        Returns:
+            dict: 权重配置
+        """
         try:
+            # 获取文档类型
             doc_type = getattr(metadata, 'chunk_type', None)
             if hasattr(doc_type, 'value'):
                 doc_type = doc_type.value
             
+            # 根据文档类型返回不同权重
             weight_configs = {
                 'maintenance_manual': {
                     'aviation_specific': 0.30,
@@ -106,95 +221,116 @@ class QualityAssessmentEngine:
                 }
             }
             
-            default_weights = {
-                'aviation_specific': 0.25,
-                'semantic_completeness': 0.25,
-                'information_density': 0.25,
-                'structure_quality': 0.20,
-                'size_appropriateness': 0.05
-            }
-            
-            return weight_configs.get(str(doc_type), default_weights)
+            return weight_configs.get(str(doc_type), self.weights)
             
         except Exception as e:
             self.logger.warning(f"获取权重配置失败: {e}")
-            return {
-                'aviation_specific': 0.25,
-                'semantic_completeness': 0.25,
-                'information_density': 0.25,
-                'structure_quality': 0.20,
-                'size_appropriateness': 0.05
-            }
+            return self.weights
+    
+    def _calculate_penalty(self, chunk: TextChunk) -> float:
+        """
+        计算质量惩罚分数
+        
+        Args:
+            chunk: 文本分块
+            
+        Returns:
+            float: 惩罚分数
+        """
+        try:
+            penalty = 0.0
+            
+            # 内容过短惩罚
+            if chunk.character_count < 30:
+                penalty += 0.4
+            elif chunk.character_count < 50:
+                penalty += 0.2
+            
+            # 空白字符过多惩罚
+            non_space_ratio = len(chunk.content.replace(' ', '').replace('\n', '').replace('\t', '')) / len(chunk.content)
+            if non_space_ratio < 0.3:
+                penalty += 0.5
+            elif non_space_ratio < 0.5:
+                penalty += 0.3
+            elif non_space_ratio < 0.6:
+                penalty += 0.1
+            
+            return penalty
+            
+        except Exception:
+            return 0.0
     
     def _calculate_aviation_specific_score(self, chunk: TextChunk) -> float:
-        """计算航空领域特定性评分"""
+        """
+        计算航空领域特定性评分
+        
+        Args:
+            chunk: 文本分块
+            
+        Returns:
+            float: 航空特定性评分（0-1）
+        """
         try:
             score = 0.5  # 从较低的基础分开始
             content = chunk.content.lower()
-
+            
             # 航空术语密度检查
-            aviation_terms = [
-                '发动机', '液压系统', '燃油系统', '电气系统', '起落架',
-                '飞行控制', '导航系统', '通信系统', '客舱', '货舱',
-                'engine', 'hydraulic', 'fuel system', 'electrical', 'landing gear',
-                'flight control', 'navigation', 'communication', 'cabin', 'cargo'
-            ]
-
-            # 计算航空术语密度
-            aviation_term_count = sum(1 for term in aviation_terms if term in content)
+            aviation_term_count = sum(1 for term in self.aviation_terms if term in content)
             if aviation_term_count > 0:
                 score += min(0.3, aviation_term_count * 0.1)  # 每个术语加0.1分，最多0.3分
-
+            
             # 检查航空术语是否被截断
-            for term in aviation_terms:
+            for term in self.aviation_terms:
                 if term in content:
                     if content.startswith(term[1:]) or content.endswith(term[:-1]):
                         score -= 0.3  # 术语截断严重扣分
                         break
-
+            
             # 安全信息完整性检查
-            safety_keywords = [
-                '警告', '注意', '危险', '禁止', '必须',
-                'warning', 'caution', 'danger', 'prohibited', 'must'
-            ]
-
-            safety_found = any(keyword in content for keyword in safety_keywords)
+            safety_found = any(keyword in content for keyword in self.safety_keywords)
             if safety_found:
                 score += 0.2  # 包含安全信息加分
                 if not self._is_safety_info_complete(chunk.content):
                     score -= 0.4  # 安全信息不完整严重扣分
-
+            
             # 操作步骤连贯性检查
-            import re
             step_patterns = [
                 r'步骤\s*\d+', r'第\s*\d+\s*步', r'step\s+\d+',
                 r'\d+\.\s', r'\(\d+\)', r'[a-z]\)'
             ]
-
+            
             has_steps = any(re.search(pattern, content, re.IGNORECASE) for pattern in step_patterns)
             if has_steps:
                 score += 0.2  # 包含步骤加分
                 if self._has_incomplete_procedures(chunk.content):
                     score -= 0.3  # 步骤不完整扣分
-
+            
             # 技术参数检查
             param_patterns = [
                 r'\d+\s*(rpm|psi|°c|°f|kg|lb|ft|m|v|a|bar|mpa)',
                 r'压力[:：]\s*\d+', r'温度[:：]\s*\d+', r'转速[:：]\s*\d+'
             ]
-
+            
             has_params = any(re.search(pattern, content, re.IGNORECASE) for pattern in param_patterns)
             if has_params:
                 score += 0.2  # 包含技术参数加分
-
+            
             return max(0.0, min(1.0, score))
 
         except Exception as e:
             self.logger.warning(f"航空特定性评分计算失败: {e}")
             return 0.5
-    
+
     def _is_safety_info_complete(self, content: str) -> bool:
-        """检查安全信息是否完整"""
+        """
+        检查安全信息是否完整
+
+        Args:
+            content: 文本内容
+
+        Returns:
+            bool: 是否完整
+        """
         try:
             safety_start_patterns = ['警告:', '注意:', '危险:', 'WARNING:', 'CAUTION:', 'DANGER:']
 
@@ -220,42 +356,60 @@ class QualityAssessmentEngine:
 
         except Exception:
             return True
-    
+
     def _has_incomplete_procedures(self, content: str) -> bool:
-        """检查是否有不完整的操作步骤"""
+        """
+        检查是否有不完整的操作步骤
+
+        Args:
+            content: 文本内容
+
+        Returns:
+            bool: 是否有不完整步骤
+        """
         try:
-            import re
-            
+            # 查找步骤编号
             step_numbers = re.findall(r'步骤\s*(\d+)|第\s*(\d+)\s*步|step\s+(\d+)|^(\d+)\.', content, re.IGNORECASE | re.MULTILINE)
-            
+
             if not step_numbers:
                 return False
-            
+
+            # 提取数字
             numbers = []
             for match in step_numbers:
                 for group in match:
                     if group:
                         numbers.append(int(group))
                         break
-            
+
             if not numbers:
                 return False
-            
+
+            # 检查步骤是否连续
             numbers.sort()
             for i in range(len(numbers) - 1):
                 if numbers[i + 1] - numbers[i] > 1:
-                    return True
-            
+                    return True  # 有跳跃，可能不完整
+
+            # 检查是否以步骤开始但没有结束
             if numbers and not content.strip().endswith(('.', '。', '完成', 'complete', 'done')):
                 return True
-            
+
             return False
-            
+
         except Exception:
             return False
-    
+
     def _calculate_semantic_completeness_score(self, chunk: TextChunk) -> float:
-        """计算语义完整性评分"""
+        """
+        计算语义完整性评分
+
+        Args:
+            chunk: 文本分块
+
+        Returns:
+            float: 语义完整性评分（0-1）
+        """
         try:
             score = 0.6  # 从较低的基础分开始
             content = chunk.content.strip()
@@ -265,7 +419,6 @@ class QualityAssessmentEngine:
             has_proper_ending = any(content.endswith(ending) for ending in proper_endings)
 
             # 对于列表、参数等特殊格式，不要求句号结尾
-            import re
             list_patterns = [
                 r'^\s*[-•]\s',
                 r'^\s*\d+\.\s',
@@ -319,9 +472,17 @@ class QualityAssessmentEngine:
         except Exception as e:
             self.logger.warning(f"语义完整性评分计算失败: {e}")
             return 0.5
-    
+
     def _calculate_information_density_score(self, chunk: TextChunk) -> float:
-        """计算信息密度评分"""
+        """
+        计算信息密度评分
+
+        Args:
+            chunk: 文本分块
+
+        Returns:
+            float: 信息密度评分（0-1）
+        """
         try:
             score = 0.5  # 从中等基础分开始
             content = chunk.content
@@ -367,7 +528,6 @@ class QualityAssessmentEngine:
                 score -= 0.2  # 低关键词密度扣分
 
             # 检查数字和技术数据的密度
-            import re
             numbers = re.findall(r'\d+(?:\.\d+)?', content)
             units = re.findall(r'\d+\s*(rpm|psi|°c|°f|kg|lb|ft|m|v|a|bar|mpa)', content, re.IGNORECASE)
 
@@ -396,15 +556,22 @@ class QualityAssessmentEngine:
         except Exception as e:
             self.logger.warning(f"信息密度评分计算失败: {e}")
             return 0.5
-    
+
     def _calculate_structure_quality_score(self, chunk: TextChunk) -> float:
-        """计算结构质量评分"""
+        """
+        计算结构质量评分
+
+        Args:
+            chunk: 文本分块
+
+        Returns:
+            float: 结构质量评分（0-1）
+        """
         try:
             score = 0.4  # 从较低的基础分开始
             content = chunk.content
 
             # 检查标题和章节结构
-            import re
             structure_markers = [
                 r'^第\s*[一二三四五六七八九十\d]+\s*[章节条]',
                 r'^Chapter\s+\d+',
@@ -456,7 +623,7 @@ class QualityAssessmentEngine:
 
             for pattern in special_structures:
                 if re.search(pattern, content, re.MULTILINE | re.DOTALL):
-                    score += 0.2  # 有特殊结构加分
+                    score += 0.1
                     break
 
             # 检查结构的完整性
@@ -469,26 +636,36 @@ class QualityAssessmentEngine:
             for start_pattern, end_pattern in incomplete_patterns:
                 if re.search(start_pattern, content, re.IGNORECASE | re.MULTILINE):
                     if not re.search(end_pattern, content, re.IGNORECASE | re.MULTILINE):
-                        score -= 0.3  # 结构不完整扣分
+                        score -= 0.2
                         break
 
             return max(0.0, min(1.0, score))
 
         except Exception as e:
             self.logger.warning(f"结构质量评分计算失败: {e}")
-            return 0.4
-    
+            return 0.7
+
     def _calculate_size_appropriateness_score(self, chunk: TextChunk) -> float:
-        """计算大小适当性评分"""
+        """
+        计算大小适当性评分
+
+        Args:
+            chunk: 文本分块
+
+        Returns:
+            float: 大小适当性评分（0-1）
+        """
         try:
             char_count = chunk.character_count
 
+            # 定义最优大小区间
             optimal_min = self.chunk_size * 0.8
             optimal_max = self.chunk_size * 1.2
 
             if optimal_min <= char_count <= optimal_max:
                 return 1.0
 
+            # 计算偏离最优区间的程度
             if char_count < optimal_min:
                 if char_count < self.min_chunk_size:
                     # 对过小的分块更严格评分
@@ -509,248 +686,3 @@ class QualityAssessmentEngine:
         except Exception as e:
             self.logger.warning(f"大小适当性评分计算失败: {e}")
             return 0.5
-    
-    def calculate_chunk_quality(self, chunk: TextChunk) -> float:
-        """计算分块质量评分（航空RAG系统优化版）"""
-        try:
-            if not chunk.content.strip():
-                return 0.0
-
-            if chunk.character_count < 10:
-                return 0.1
-
-            # 根据文档类型获取权重配置
-            weights = self._get_quality_weights(chunk.metadata)
-
-            # 计算各维度评分
-            aviation_score = self._calculate_aviation_specific_score(chunk)
-            semantic_score = self._calculate_semantic_completeness_score(chunk)
-            density_score = self._calculate_information_density_score(chunk)
-            structure_score = self._calculate_structure_quality_score(chunk)
-            size_score = self._calculate_size_appropriateness_score(chunk)
-
-            # 可选的调试输出（注释掉以简化输出）
-            # print(f"   [调试] 航空特定性: {aviation_score:.3f}")
-            # print(f"   [调试] 语义完整性: {semantic_score:.3f}")
-            # print(f"   [调试] 信息密度: {density_score:.3f}")
-            # print(f"   [调试] 结构质量: {structure_score:.3f}")
-            # print(f"   [调试] 大小适当性: {size_score:.3f}")
-
-            # 加权计算总分
-            total_score = (
-                aviation_score * weights['aviation_specific'] +
-                semantic_score * weights['semantic_completeness'] +
-                density_score * weights['information_density'] +
-                structure_score * weights['structure_quality'] +
-                size_score * weights['size_appropriateness']
-            )
-
-            # 对于明显有问题的内容，应用惩罚机制
-            penalty = 0.0
-
-            # 内容过短惩罚
-            if chunk.character_count < 30:
-                penalty += 0.4
-            elif chunk.character_count < 50:
-                penalty += 0.2
-
-            # 空白字符过多惩罚
-            non_space_ratio = len(chunk.content.replace(' ', '').replace('\n', '').replace('\t', '')) / len(chunk.content)
-            if non_space_ratio < 0.3:
-                penalty += 0.5
-            elif non_space_ratio < 0.5:
-                penalty += 0.3
-            elif non_space_ratio < 0.6:
-                penalty += 0.1
-
-            # 应用惩罚，但保留最低分数
-            final_score = max(0.1, total_score - penalty)
-
-            return round(min(1.0, final_score), 3)
-
-        except Exception as e:
-            self.logger.warning(f"分块质量评分计算失败: {e}")
-            return 0.5
-
-
-def create_test_chunks():
-    """创建测试用的分块数据"""
-    
-    test_cases = [
-        {
-            'name': '完整的维修步骤',
-            'content': '''第3章 发动机维修程序
-3.1 日常检查步骤
-警告：检查前必须关闭发动机并等待冷却。
-步骤1：检查发动机外观，查看是否有泄漏或损坏。
-步骤2：检查机油液位，确保在正常范围内（2.5-3.0升）。
-步骤3：检查冷却液温度，正常工作温度应为85-95°C。
-检查完成后，记录所有参数并签字确认。''',
-            'chunk_type': ChunkType.MAINTENANCE_MANUAL,
-            'expected_score_range': (0.8, 1.0)
-        },
-        
-        {
-            'name': '不完整的安全警告',
-            'content': '''警告：在进行液压系统维修时，必须注意
-压力释放程序包括：
-1. 关闭主电源
-2. 释放系统压力''',
-            'chunk_type': ChunkType.MAINTENANCE_MANUAL,
-            'expected_score_range': (0.4, 0.7)
-        },
-        
-        {
-            'name': '技术参数列表',
-            'content': '''液压系统技术规格：
-工作压力：3000 PSI
-最大压力：3500 PSI
-工作温度：-40°C 到 +85°C
-液压油类型：MIL-H-5606
-油箱容量：15升
-过滤器规格：25微米''',
-            'chunk_type': ChunkType.TECHNICAL_STANDARD,
-            'expected_score_range': (0.6, 0.8)  # 调整预期范围，因为内容较短
-        },
-
-        {
-            'name': '截断的航空术语',
-            'content': '''液压系统检查程序
-检查液压泵的工作状态，确保压力稳定。如果发现液压
-油泄漏，应立即停止操作并进行维修。检查完成后更新维修记录。''',
-            'chunk_type': ChunkType.MAINTENANCE_MANUAL,
-            'expected_score_range': (0.3, 0.6)
-        },
-
-        {
-            'name': '完整的航空法规',
-            'content': '''第147条 航空器维修人员资质要求
-147.1 基本要求
-持证维修人员必须具备以下条件：
-(a) 年满18周岁；
-(b) 具有相应的技术培训经历；
-(c) 通过理论和实践考试；
-(d) 身体健康，能够胜任维修工作。
-本条款自发布之日起生效，所有维修人员必须严格遵守。''',
-            'chunk_type': ChunkType.REGULATION,
-            'expected_score_range': (0.8, 1.0)
-        },
-
-        {
-            'name': '空白内容过多',
-            'content': '''
-
-
-检查     项目：     发动机
-
-
-状态：     正常
-
-
-
-''',
-            'chunk_type': ChunkType.MAINTENANCE_MANUAL,
-            'expected_score_range': (0.1, 0.4)
-        }
-    ]
-    
-    chunks = []
-    for i, case in enumerate(test_cases):
-        metadata = ChunkMetadata(
-            chunk_id=f"test_chunk_{i}",
-            chunk_type=case['chunk_type'],
-            source_document=f"test_doc_{case['name']}"
-        )
-        
-        chunk = TextChunk(
-            content=case['content'],
-            metadata=metadata,
-            word_count=len(case['content'].split()),
-            character_count=len(case['content'])
-        )
-        
-        chunks.append({
-            'chunk': chunk,
-            'name': case['name'],
-            'expected_range': case['expected_score_range']
-        })
-    
-    return chunks
-
-
-def main():
-    """主测试函数"""
-    print("🚀 航空RAG系统分块质量评估改进效果测试")
-    print("=" * 60)
-    
-    # 创建质量评估引擎
-    config = {
-        'chunk_size': 1000,
-        'min_chunk_size': 100,
-        'max_chunk_size': 2000
-    }
-    
-    engine = QualityAssessmentEngine(config)
-    
-    # 获取测试数据
-    test_chunks = create_test_chunks()
-    
-    print(f"\n📊 测试用例总数: {len(test_chunks)}")
-    print("-" * 60)
-    
-    results = []
-    
-    for test_case in test_chunks:
-        chunk = test_case['chunk']
-        name = test_case['name']
-        expected_range = test_case['expected_range']
-        
-        # 计算质量评分
-        quality_score = engine.calculate_chunk_quality(chunk)
-        
-        # 检查是否在预期范围内
-        in_range = expected_range[0] <= quality_score <= expected_range[1]
-        status = "✅ 通过" if in_range else "❌ 未通过"
-        
-        print(f"\n📝 测试用例: {name}")
-        print(f"   内容长度: {chunk.character_count} 字符")
-        print(f"   文档类型: {chunk.metadata.chunk_type}")
-        print(f"   质量评分: {quality_score:.3f}")
-        print(f"   预期范围: {expected_range[0]:.1f} - {expected_range[1]:.1f}")
-        print(f"   测试结果: {status}")
-        
-        # 显示内容预览
-        preview = chunk.content[:100].replace('\n', ' ')
-        if len(chunk.content) > 100:
-            preview += "..."
-        print(f"   内容预览: {preview}")
-        
-        results.append({
-            'name': name,
-            'score': quality_score,
-            'expected': expected_range,
-            'passed': in_range
-        })
-    
-    # 统计结果
-    passed_count = sum(1 for r in results if r['passed'])
-    total_count = len(results)
-    pass_rate = passed_count / total_count * 100
-    
-    print("\n" + "=" * 60)
-    print("📈 测试结果统计")
-    print("-" * 60)
-    print(f"通过测试: {passed_count}/{total_count} ({pass_rate:.1f}%)")
-    
-    if pass_rate >= 80:
-        print("🎉 质量评估改进效果良好！")
-    elif pass_rate >= 60:
-        print("⚠️  质量评估有所改进，但仍需优化")
-    else:
-        print("❌ 质量评估需要进一步改进")
-    
-    print("\n✨ 测试完成！")
-
-
-if __name__ == "__main__":
-    main()

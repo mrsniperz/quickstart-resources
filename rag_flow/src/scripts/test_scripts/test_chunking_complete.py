@@ -6,6 +6,155 @@
 作者: Sniperz
 版本: v1.0.0
 
+ef64620b-0350-404b-896c-e8104e58a9b3
+
+我来帮您分析 `test_chunking_complete.py` 文件中的 `--quality-strategy` 参数配置。首先让我查看这个测试文件的完整内容，然后追溯相关的实现代码。
+
+现在我需要查找 `--quality-strategy` 参数在代码中的使用情况。让我先搜索相关的代码实现：
+
+现在让我查找是否有 `general` 和 `technical` 策略的具体实现：
+
+现在让我查看质量评估管理器中是否有对 `general` 和 `technical` 策略的别名映射或其他处理：
+
+让我检查是否有任何策略别名映射或者 `general` 和 `technical` 策略的实现：
+
+现在让我使用思维工具来分析这个问题：
+
+基于我的详细分析，我发现了 `test_chunking_complete.py` 文件中 `--quality-strategy` 参数配置存在严重的不匹配问题。以下是完整的分析报告：
+
+## 🔍 分析结果
+
+### 1. **参数值验证问题** ❌
+
+**发现的问题：**
+````python path=rag_flow/src/scripts/test_scripts/test_chunking_complete.py mode=EXCERPT
+parser.add_argument('--quality-strategy', choices=['aviation', 'general', 'technical'], 
+                   default='aviation', help='质量评估策略 (默认: aviation)')
+````
+
+参数定义声明支持三个值：`['aviation', 'general', 'technical']`，但实际代码中只有 `aviation` 策略有完整实现。
+
+### 2. **调用链追溯分析**
+
+**参数传递路径：**
+1. **参数解析** → `args.quality_strategy` (第1079行)
+2. **配置设置** → `config['quality_strategy']` (第1101行)  
+3. **引擎初始化** → `ChunkingEngine.quality_strategy` (第116行)
+4. **质量评估** → `QualityAssessmentManager.assess_chunk_quality()` (第360行)
+
+**关键调用点：**
+````python path=rag_flow/src/core/document_processor/chunking/chunking_engine.py mode=EXCERPT
+def _calculate_chunk_quality(self, chunk: TextChunk) -> float:
+    if hasattr(self, 'quality_manager') and self.quality_manager:
+        strategy_name = self.quality_strategy  # 这里使用用户指定的策略
+        quality_metrics = self.quality_manager.assess_chunk_quality(
+            chunk, strategy_name, context
+        )
+````
+
+### 3. **实现完整性检查** ❌
+
+**已实现的策略：**
+````python path=rag_flow/src/core/document_processor/chunking/quality/manager.py mode=EXCERPT
+def _register_builtin_strategies(self) -> None:
+    # 注册基础策略
+    self.register_strategy('basic', BaseQualityAssessment(basic_config))
+    # 注册航空质量评估策略  
+    self.register_strategy('aviation', AviationQualityAssessment(aviation_config))
+    # 注册语义质量评估策略
+    self.register_strategy('semantic', SemanticQualityAssessment(semantic_config))
+    # 注册长度均匀性评估策略
+    self.register_strategy('length_uniformity', LengthUniformityAssessment(length_config))
+    # 注册内容完整性评估策略
+    self.register_strategy('content_completeness', ContentCompletenessAssessment(completeness_config))
+````
+
+**缺失的策略：**
+- ❌ `general` - 无对应的 `GeneralQualityAssessment` 类
+- ❌ `technical` - 无对应的 `TechnicalQualityAssessment` 类
+
+### 4. **全局一致性检查** ❌
+
+**文档承诺 vs 代码实现：**
+
+文档中的承诺（README_test_chunking.md）：
+````markdown path=rag_flow/src/scripts/test_scripts/README_test_chunking.md mode=EXCERPT
+系统提供三种质量评估策略：
+
+1. **aviation**（默认）：针对航空领域文档优化的评估策略
+2. **general**：通用文档的评估策略
+3. **technical**：技术文档的评估策略
+````
+
+但实际可用的策略只有：`['basic', 'aviation', 'semantic', 'length_uniformity', 'content_completeness']`
+
+### 5. **错误识别与影响分析** 🚨
+
+**运行时错误风险：**
+当用户指定 `--quality-strategy general` 或 `--quality-strategy technical` 时：
+
+1. 参数验证通过（因为在choices列表中）
+2. 传递到质量评估管理器时，策略不存在
+3. 可能导致：
+   - 抛出 KeyError 异常
+   - 回退到默认策略（但无明确提示）
+   - 质量评估失败
+
+## 🔧 修复建议
+
+### 方案一：立即修复（推荐）
+
+**修改参数定义，使用实际存在的策略：**
+
+````python path=rag_flow/src/scripts/test_scripts/test_chunking_complete.py mode=EXCERPT
+# 修改第1079行
+parser.add_argument('--quality-strategy', choices=['aviation', 'basic', 'semantic'], 
+                   default='aviation', help='质量评估策略 (默认: aviation)')
+````
+
+### 方案二：策略别名映射
+
+在质量评估管理器中添加别名映射：
+
+```python
+def _register_builtin_strategies(self) -> None:
+    # ... 现有注册代码 ...
+    
+    # 添加策略别名映射
+    self.register_strategy('general', BaseQualityAssessment(basic_config))  # general -> basic
+    self.register_strategy('technical', SemanticQualityAssessment(semantic_config))  # technical -> semantic
+```
+
+### 方案三：完整实现（长期方案）
+
+1. 创建 `GeneralQualityAssessment` 类
+2. 创建 `TechnicalQualityAssessment` 类  
+3. 在管理器中注册这些策略
+4. 更新文档说明
+
+### 方案四：错误处理改进
+
+在质量评估管理器中添加策略验证：
+
+```python
+def assess_chunk_quality(self, chunk: TextChunk, strategy_name: Optional[str] = None, context: Optional[Dict[str, Any]] = None) -> QualityMetrics:
+    if strategy_name and strategy_name not in self.strategies:
+        self.logger.warning(f"策略 {strategy_name} 不存在，使用默认策略 {self.default_strategy}")
+        strategy_name = self.default_strategy
+    # ... 继续处理
+```
+
+## 📋 总结
+
+这是一个典型的**接口承诺与实现不匹配**的问题：
+
+- ✅ `aviation` 策略：完整实现
+- ❌ `general` 策略：仅有参数定义，无实现
+- ❌ `technical` 策略：仅有参数定义，无实现
+
+**建议优先采用方案一进行立即修复**，确保用户不会遇到运行时错误，然后根据实际需求决定是否实现完整的 `general` 和 `technical` 策略。
+
+
 使用说明:
     python test_chunking_complete.py --demo                    # 运行演示模式
     python test_chunking_complete.py -i document.txt          # 测试文件
@@ -135,6 +284,7 @@ class SafeChunkingEngine:
         keep_separator = self.config.get('keep_separator', True)
         is_separator_regex = self.config.get('is_separator_regex', False)
         strip_whitespace = self.config.get('strip_whitespace', True)
+        enable_quality_assessment = self.config.get('enable_quality_assessment', True)
 
         # 递归分块函数
         def _split_text_with_separators(text: str, separators: List[str]) -> List[str]:
@@ -217,7 +367,7 @@ class SafeChunkingEngine:
                 'content': chunk_text,
                 'character_count': len(chunk_text),
                 'word_count': len(chunk_text.split()),
-                'quality_score': 0.8,  # 默认质量评分
+                'quality_score': 0.8 if enable_quality_assessment else 1.0,  # 根据配置设置质量评分
                 'overlap_content': overlap_content,
                 'metadata': {
                     'chunk_id': f"simple_{i:04d}",
@@ -339,6 +489,12 @@ class ChunkingTester:
             # 创建安全的分块引擎
             self.engine = SafeChunkingEngine(self.config)
             self.logger.info("分块测试器初始化成功")
+            
+            # 记录质量评分配置
+            enable_quality = self.config.get('enable_quality_assessment', True)
+            quality_strategy = self.config.get('quality_strategy', 'aviation')
+            self.logger.info(f"质量评分: {'启用' if enable_quality else '禁用'}, 策略: {quality_strategy}")
+            
         except Exception as e:
             self.logger.error(f"分块测试器初始化失败: {e}")
             raise
@@ -1031,6 +1187,10 @@ def main():
   %(prog)s --compare -t "测试文本"           # 策略对比
   %(prog)s -s recursive --chunk-size 500   # 自定义参数
 
+质量评分配置:
+  %(prog)s -t "文本" --disable-quality-assessment   # 禁用质量评分
+  %(prog)s -t "文本" --quality-strategy general     # 使用general质量评估策略
+
 RecursiveCharacterChunker 高级用法:
   %(prog)s -t "文本" --separators "。" "！" "？"  # 自定义分隔符
   %(prog)s -t "文本" --is-separator-regex        # 启用正则表达式
@@ -1063,6 +1223,11 @@ RecursiveCharacterChunker 高级用法:
     parser.add_argument('--no-strip-whitespace', action='store_true', help='不去除空白字符')
     parser.add_argument('--show-separators', action='store_true', help='显示默认分隔符列表')
 
+    # 添加质量评分相关参数
+    parser.add_argument('--disable-quality-assessment', action='store_true', help='禁用质量评分')
+    parser.add_argument('--quality-strategy', choices=['aviation', 'general', 'technical'], 
+                       default='aviation', help='质量评估策略 (默认: aviation)')
+
     # 功能参数
     parser.add_argument('--compare', action='store_true', help='对比不同策略')
     parser.add_argument('--validate', action='store_true', help='详细验证分块结果')
@@ -1080,7 +1245,9 @@ RecursiveCharacterChunker 高级用法:
         'chunk_overlap': args.chunk_overlap,
         'min_chunk_size': args.min_chunk_size,
         'max_chunk_size': args.max_chunk_size,
-        'preserve_context': True
+        'preserve_context': True,
+        'enable_quality_assessment': not args.disable_quality_assessment,
+        'quality_strategy': args.quality_strategy
     }
 
     # 添加 RecursiveCharacterChunker 特有配置
@@ -1104,6 +1271,7 @@ RecursiveCharacterChunker 高级用法:
         if not args.quiet:
             print("🚀 RAG Flow 文档分块完整测试脚本启动")
             print(f"📋 当前配置: 分块大小={args.chunk_size}, 重叠={args.chunk_overlap}")
+            print(f"📊 质量评分: {'禁用' if args.disable_quality_assessment else '启用'}, 策略: {args.quality_strategy}")
 
         # 根据参数执行不同的测试模式
         if args.show_separators:
@@ -1176,6 +1344,8 @@ RecursiveCharacterChunker 高级用法:
             print("  --demo              运行演示模式")
             print("  --list-strategies   查看可用策略")
             print("  --show-separators   查看递归分块器分隔符")
+            print("  --disable-quality-assessment  禁用质量评分")
+            print("  --quality-strategy  设置质量评估策略")
             print("  --help              查看详细帮助")
 
     except KeyboardInterrupt:

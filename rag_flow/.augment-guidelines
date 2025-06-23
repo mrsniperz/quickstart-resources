@@ -90,6 +90,7 @@ logger.info(f"用户 {user_id} 登录成功")
 logger.error(f"数据库连接失败: {e}")
 ```
 
+- 默认使用`src/utils/logger.py`中的`SZ_LoggerManager`进行日志管理
 - 记录关键操作和错误信息
 - 包含必要的上下文信息
 

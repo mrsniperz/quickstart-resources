@@ -11,6 +11,7 @@ from typing import Dict, List, Optional, Any
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
+from ..config.config_manager import get_config_manager
 
 
 class ChunkType(Enum):
@@ -90,18 +91,37 @@ class ChunkingEngine:
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         """
         初始化分块引擎
-        
+
         Args:
             config (dict, optional): 配置参数
-                - default_strategy (str): 默认分块策略
-                - chunk_size (int): 默认分块大小
-                - chunk_overlap (int): 分块重叠大小
-                - min_chunk_size (int): 最小分块大小
-                - max_chunk_size (int): 最大分块大小
-                - preserve_context (bool): 是否保持上下文
+                - default_strategy (str): 默认分块策略，默认从配置文件读取
+                - chunk_size (int): 默认分块大小，默认从配置文件读取
+                - chunk_overlap (int): 分块重叠大小，默认从配置文件读取
+                - min_chunk_size (int): 最小分块大小，默认从配置文件读取
+                - max_chunk_size (int): 最大分块大小，默认从配置文件读取
+                - preserve_context (bool): 是否保持上下文，默认从配置文件读取
         """
-        self.config = config or {}
-        self.logger = logging.getLogger(__name__)
+        # 导入统一日志管理器
+        try:
+            from src.utils.logger import SZ_LoggerManager
+            self.logger = SZ_LoggerManager.setup_logger(__name__)
+        except ImportError:
+            # 回退到标准logging
+            import logging
+            self.logger = logging.getLogger(__name__)
+
+        # 获取配置管理器和默认配置
+        try:
+            config_manager = get_config_manager()
+            default_config = config_manager.get_chunking_config('global')
+        except Exception as e:
+            self.logger.warning(f"无法加载配置文件，使用硬编码默认配置: {e}")
+            default_config = self._get_fallback_config()
+
+        # 合并用户配置和默认配置
+        self.config = default_config.copy()
+        if config:
+            self.config.update(config)
 
         # 配置参数
         self.default_strategy = self.config.get('default_strategy', 'recursive')
@@ -124,6 +144,24 @@ class ChunkingEngine:
         # 注册内置策略
         self._register_builtin_strategies()
 
+    def _get_fallback_config(self) -> Dict[str, Any]:
+        """
+        获取回退配置（当配置文件不可用时使用）
+
+        Returns:
+            dict: 回退配置
+        """
+        return {
+            'default_strategy': 'recursive',
+            'chunk_size': 1000,
+            'chunk_overlap': 200,
+            'min_chunk_size': 100,
+            'max_chunk_size': 2000,
+            'preserve_context': True,
+            'enable_quality_assessment': True,
+            'quality_strategy': 'aviation'
+        }
+
     def _init_quality_assessment_manager(self) -> None:
         """
         初始化质量评估管理器
@@ -132,14 +170,14 @@ class ChunkingEngine:
             # 尝试导入质量评估管理器
             try:
                 from .quality.manager import QualityAssessmentManager
-            except ImportError:
-                # 如果相对导入失败，尝试绝对导入
-                import sys
-                import os
-                quality_path = os.path.join(os.path.dirname(__file__), 'quality')
-                if quality_path not in sys.path:
-                    sys.path.insert(0, quality_path)
-                from manager import QualityAssessmentManager
+            except ImportError as e:
+                self.logger.warning(f"质量评估管理器导入失败，将使用基础评估: {e}")
+                self.quality_manager = None
+                return
+            except Exception as e:
+                self.logger.warning(f"质量评估管理器导入异常，将使用基础评估: {e}")
+                self.quality_manager = None
+                return
 
             # 质量评估配置
             quality_config = self.config.get('quality_assessment', {})
@@ -149,11 +187,15 @@ class ChunkingEngine:
                 'chunk_size': self.chunk_size
             })
 
-            self.quality_manager = QualityAssessmentManager(quality_config)
-            self.logger.info("质量评估管理器初始化完成")
+            try:
+                self.quality_manager = QualityAssessmentManager(quality_config)
+                self.logger.info("质量评估管理器初始化完成")
+            except Exception as e:
+                self.logger.warning(f"质量评估管理器创建失败，将使用基础评估: {e}")
+                self.quality_manager = None
 
         except Exception as e:
-            self.logger.error(f"质量评估管理器初始化失败: {e}")
+            self.logger.warning(f"质量评估管理器初始化异常，将使用基础评估: {e}")
             self.quality_manager = None
 
     def register_strategy(self, name: str, strategy: ChunkingStrategy) -> None:
@@ -509,29 +551,43 @@ class ChunkingEngine:
     def _register_builtin_strategies(self) -> None:
         """注册内置分块策略"""
         try:
-            from .semantic_chunker import SemanticChunker
-            from .structure_chunker import StructureChunker
+            # 优先注册不依赖外部服务的策略
             from .recursive_chunker import RecursiveCharacterChunker
-            from .aviation_strategy import (
-                AviationMaintenanceStrategy,
-                AviationRegulationStrategy,
-                AviationStandardStrategy,
-                AviationTrainingStrategy
-            )
-
-            # 注册基础策略
-            self.register_strategy('semantic', SemanticChunker(self.config))
-            self.register_strategy('structure', StructureChunker(self.config))
             self.register_strategy('recursive', RecursiveCharacterChunker(self.config))
 
-            # 注册航空专用策略
-            self.register_strategy('aviation_maintenance', AviationMaintenanceStrategy(self.config))
-            self.register_strategy('aviation_regulation', AviationRegulationStrategy(self.config))
-            self.register_strategy('aviation_standard', AviationStandardStrategy(self.config))
-            self.register_strategy('aviation_training', AviationTrainingStrategy(self.config))
+            # 尝试注册其他策略，如果失败则跳过
+            try:
+                from .semantic_chunker import SemanticChunker
+                self.register_strategy('semantic', SemanticChunker(self.config))
+            except ImportError as e:
+                self.logger.warning(f"语义分块器导入失败，跳过注册: {e}")
+
+            try:
+                from .structure_chunker import StructureChunker
+                self.register_strategy('structure', StructureChunker(self.config))
+            except ImportError as e:
+                self.logger.warning(f"结构分块器导入失败，跳过注册: {e}")
+
+            try:
+                from .aviation_strategy import (
+                    AviationMaintenanceStrategy,
+                    AviationRegulationStrategy,
+                    AviationStandardStrategy,
+                    AviationTrainingStrategy
+                )
+                # 注册航空专用策略
+                self.register_strategy('aviation_maintenance', AviationMaintenanceStrategy(self.config))
+                self.register_strategy('aviation_regulation', AviationRegulationStrategy(self.config))
+                self.register_strategy('aviation_standard', AviationStandardStrategy(self.config))
+                self.register_strategy('aviation_training', AviationTrainingStrategy(self.config))
+            except ImportError as e:
+                self.logger.warning(f"航空策略导入失败，跳过注册: {e}")
 
         except Exception as e:
             self.logger.error(f"内置策略注册失败: {e}")
+            # 确保至少有一个基础策略可用
+            if not self.strategies:
+                self.logger.warning("没有可用的分块策略，系统将无法正常工作")
     
     def get_available_strategies(self) -> List[str]:
         """

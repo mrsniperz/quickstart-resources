@@ -6,12 +6,21 @@
 版本: v1.0.0
 """
 
-import logging
 import re
 from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime
 
+# 导入统一日志管理器
+try:
+    from src.utils.logger import SZ_LoggerManager
+    logger = SZ_LoggerManager.setup_logger(__name__)
+except ImportError:
+    # 回退到标准logging
+    import logging
+    logger = logging.getLogger(__name__)
+
 from .chunking_engine import ChunkingStrategy, TextChunk, ChunkMetadata, ChunkType
+from ..config.config_manager import get_config_manager
 
 
 class SemanticChunker(ChunkingStrategy):
@@ -29,18 +38,30 @@ class SemanticChunker(ChunkingStrategy):
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         """
         初始化语义分块器
-        
+
         Args:
             config (dict, optional): 配置参数
-                - target_chunk_size (int): 目标分块大小，默认800
-                - min_chunk_size (int): 最小分块大小，默认200
-                - max_chunk_size (int): 最大分块大小，默认1500
-                - similarity_threshold (float): 语义相似度阈值，默认0.7
-                - sentence_overlap (int): 句子重叠数量，默认1
+                - target_chunk_size (int): 目标分块大小，默认从配置文件读取
+                - min_chunk_size (int): 最小分块大小，默认从配置文件读取
+                - max_chunk_size (int): 最大分块大小，默认从配置文件读取
+                - similarity_threshold (float): 语义相似度阈值，默认从配置文件读取
+                - sentence_overlap (int): 句子重叠数量，默认从配置文件读取
         """
-        self.config = config or {}
-        self.logger = logging.getLogger(__name__)
-        
+        self.logger = logger
+
+        # 获取配置管理器和默认配置
+        try:
+            config_manager = get_config_manager()
+            default_config = config_manager.get_chunking_config('semantic')
+        except Exception as e:
+            self.logger.warning(f"无法加载配置文件，使用硬编码默认配置: {e}")
+            default_config = self._get_fallback_config()
+
+        # 合并用户配置和默认配置
+        self.config = default_config.copy()
+        if config:
+            self.config.update(config)
+
         # 配置参数
         self.target_chunk_size = self.config.get('target_chunk_size', 800)
         self.min_chunk_size = self.config.get('min_chunk_size', 200)
@@ -66,6 +87,21 @@ class SemanticChunker(ChunkingStrategy):
     def get_strategy_name(self) -> str:
         """获取策略名称"""
         return "semantic"
+
+    def _get_fallback_config(self) -> Dict[str, Any]:
+        """
+        获取回退配置（当配置文件不可用时使用）
+
+        Returns:
+            dict: 回退配置
+        """
+        return {
+            'target_chunk_size': 800,
+            'min_chunk_size': 200,
+            'max_chunk_size': 1500,
+            'similarity_threshold': 0.7,
+            'sentence_overlap': 1
+        }
     
     def chunk_text(self, text: str, metadata: Dict[str, Any]) -> List[TextChunk]:
         """

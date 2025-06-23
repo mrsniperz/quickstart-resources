@@ -11,10 +11,18 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Any, Optional, Callable, Union
 from pathlib import Path
-import logging
 import time
 from dataclasses import dataclass
 import json
+
+# 导入统一日志管理器
+try:
+    from src.utils.logger import SZ_LoggerManager
+    logger = SZ_LoggerManager.setup_logger(__name__)
+except ImportError:
+    # 回退到标准logging
+    import logging
+    logger = logging.getLogger(__name__)
 
 from ..parsers.document_processor import DocumentProcessor, UnifiedParseResult
 from .performance_monitor import get_performance_monitor, ProcessingContext
@@ -102,7 +110,7 @@ class BatchProcessor:
             config (dict, optional): 配置参数
         """
         self.config = config or {}
-        self.logger = logging.getLogger(__name__)
+        self.logger = logger
         
         # 处理器配置
         self.max_workers = self.config.get('max_workers', 4)

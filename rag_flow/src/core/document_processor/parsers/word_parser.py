@@ -6,7 +6,6 @@
 版本: v1.0.0
 """
 
-import logging
 from typing import Dict, List, Optional, Any
 from pathlib import Path
 from dataclasses import dataclass
@@ -14,6 +13,15 @@ from docx import Document
 from docx.shared import Inches
 from docx.table import Table
 from docx.text.paragraph import Paragraph
+
+# 导入统一日志管理器
+try:
+    from src.utils.logger import SZ_LoggerManager
+    logger = SZ_LoggerManager.setup_logger(__name__)
+except ImportError:
+    # 回退到标准logging
+    import logging
+    logger = logging.getLogger(__name__)
 
 from ..extractors.metadata_extractor import MetadataExtractor
 from ..extractors.table_extractor import TableExtractor
@@ -52,7 +60,7 @@ class WordParser:
                 - extract_headers_footers (bool): 是否提取页眉页脚，默认False
         """
         self.config = config or {}
-        self.logger = logging.getLogger(__name__)
+        self.logger = logger
         
         # 初始化提取器
         self.metadata_extractor = MetadataExtractor()

@@ -6,12 +6,20 @@
 版本: v1.0.0
 """
 
-import logging
 from typing import Dict, List, Optional, Any, Union
 from pathlib import Path
 from dataclasses import dataclass
 from io import BytesIO
 import json
+
+# 导入统一日志管理器
+try:
+    from src.utils.logger import SZ_LoggerManager
+    logger = SZ_LoggerManager.setup_logger(__name__)
+except ImportError:
+    # 回退到标准logging
+    import logging
+    logger = logging.getLogger(__name__)
 
 try:
     from docling.document_converter import DocumentConverter, PdfFormatOption
@@ -129,7 +137,7 @@ class DoclingParser:
             )
 
         self.config = config or {}
-        self.logger = logging.getLogger(__name__)
+        self.logger = logger
 
         # 初始化元数据提取器
         self.metadata_extractor = MetadataExtractor()

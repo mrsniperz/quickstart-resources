@@ -6,155 +6,6 @@
 作者: Sniperz
 版本: v1.0.0
 
-ef64620b-0350-404b-896c-e8104e58a9b3
-
-我来帮您分析 `test_chunking_complete.py` 文件中的 `--quality-strategy` 参数配置。首先让我查看这个测试文件的完整内容，然后追溯相关的实现代码。
-
-现在我需要查找 `--quality-strategy` 参数在代码中的使用情况。让我先搜索相关的代码实现：
-
-现在让我查找是否有 `general` 和 `technical` 策略的具体实现：
-
-现在让我查看质量评估管理器中是否有对 `general` 和 `technical` 策略的别名映射或其他处理：
-
-让我检查是否有任何策略别名映射或者 `general` 和 `technical` 策略的实现：
-
-现在让我使用思维工具来分析这个问题：
-
-基于我的详细分析，我发现了 `test_chunking_complete.py` 文件中 `--quality-strategy` 参数配置存在严重的不匹配问题。以下是完整的分析报告：
-
-## 🔍 分析结果
-
-### 1. **参数值验证问题** ❌
-
-**发现的问题：**
-````python path=rag_flow/src/scripts/test_scripts/test_chunking_complete.py mode=EXCERPT
-parser.add_argument('--quality-strategy', choices=['aviation', 'general', 'technical'], 
-                   default='aviation', help='质量评估策略 (默认: aviation)')
-````
-
-参数定义声明支持三个值：`['aviation', 'general', 'technical']`，但实际代码中只有 `aviation` 策略有完整实现。
-
-### 2. **调用链追溯分析**
-
-**参数传递路径：**
-1. **参数解析** → `args.quality_strategy` (第1079行)
-2. **配置设置** → `config['quality_strategy']` (第1101行)  
-3. **引擎初始化** → `ChunkingEngine.quality_strategy` (第116行)
-4. **质量评估** → `QualityAssessmentManager.assess_chunk_quality()` (第360行)
-
-**关键调用点：**
-````python path=rag_flow/src/core/document_processor/chunking/chunking_engine.py mode=EXCERPT
-def _calculate_chunk_quality(self, chunk: TextChunk) -> float:
-    if hasattr(self, 'quality_manager') and self.quality_manager:
-        strategy_name = self.quality_strategy  # 这里使用用户指定的策略
-        quality_metrics = self.quality_manager.assess_chunk_quality(
-            chunk, strategy_name, context
-        )
-````
-
-### 3. **实现完整性检查** ❌
-
-**已实现的策略：**
-````python path=rag_flow/src/core/document_processor/chunking/quality/manager.py mode=EXCERPT
-def _register_builtin_strategies(self) -> None:
-    # 注册基础策略
-    self.register_strategy('basic', BaseQualityAssessment(basic_config))
-    # 注册航空质量评估策略  
-    self.register_strategy('aviation', AviationQualityAssessment(aviation_config))
-    # 注册语义质量评估策略
-    self.register_strategy('semantic', SemanticQualityAssessment(semantic_config))
-    # 注册长度均匀性评估策略
-    self.register_strategy('length_uniformity', LengthUniformityAssessment(length_config))
-    # 注册内容完整性评估策略
-    self.register_strategy('content_completeness', ContentCompletenessAssessment(completeness_config))
-````
-
-**缺失的策略：**
-- ❌ `general` - 无对应的 `GeneralQualityAssessment` 类
-- ❌ `technical` - 无对应的 `TechnicalQualityAssessment` 类
-
-### 4. **全局一致性检查** ❌
-
-**文档承诺 vs 代码实现：**
-
-文档中的承诺（README_test_chunking.md）：
-````markdown path=rag_flow/src/scripts/test_scripts/README_test_chunking.md mode=EXCERPT
-系统提供三种质量评估策略：
-
-1. **aviation**（默认）：针对航空领域文档优化的评估策略
-2. **general**：通用文档的评估策略
-3. **technical**：技术文档的评估策略
-````
-
-但实际可用的策略只有：`['basic', 'aviation', 'semantic', 'length_uniformity', 'content_completeness']`
-
-### 5. **错误识别与影响分析** 🚨
-
-**运行时错误风险：**
-当用户指定 `--quality-strategy general` 或 `--quality-strategy technical` 时：
-
-1. 参数验证通过（因为在choices列表中）
-2. 传递到质量评估管理器时，策略不存在
-3. 可能导致：
-   - 抛出 KeyError 异常
-   - 回退到默认策略（但无明确提示）
-   - 质量评估失败
-
-## 🔧 修复建议
-
-### 方案一：立即修复（推荐）
-
-**修改参数定义，使用实际存在的策略：**
-
-````python path=rag_flow/src/scripts/test_scripts/test_chunking_complete.py mode=EXCERPT
-# 修改第1079行
-parser.add_argument('--quality-strategy', choices=['aviation', 'basic', 'semantic'], 
-                   default='aviation', help='质量评估策略 (默认: aviation)')
-````
-
-### 方案二：策略别名映射
-
-在质量评估管理器中添加别名映射：
-
-```python
-def _register_builtin_strategies(self) -> None:
-    # ... 现有注册代码 ...
-    
-    # 添加策略别名映射
-    self.register_strategy('general', BaseQualityAssessment(basic_config))  # general -> basic
-    self.register_strategy('technical', SemanticQualityAssessment(semantic_config))  # technical -> semantic
-```
-
-### 方案三：完整实现（长期方案）
-
-1. 创建 `GeneralQualityAssessment` 类
-2. 创建 `TechnicalQualityAssessment` 类  
-3. 在管理器中注册这些策略
-4. 更新文档说明
-
-### 方案四：错误处理改进
-
-在质量评估管理器中添加策略验证：
-
-```python
-def assess_chunk_quality(self, chunk: TextChunk, strategy_name: Optional[str] = None, context: Optional[Dict[str, Any]] = None) -> QualityMetrics:
-    if strategy_name and strategy_name not in self.strategies:
-        self.logger.warning(f"策略 {strategy_name} 不存在，使用默认策略 {self.default_strategy}")
-        strategy_name = self.default_strategy
-    # ... 继续处理
-```
-
-## 📋 总结
-
-这是一个典型的**接口承诺与实现不匹配**的问题：
-
-- ✅ `aviation` 策略：完整实现
-- ❌ `general` 策略：仅有参数定义，无实现
-- ❌ `technical` 策略：仅有参数定义，无实现
-
-**建议优先采用方案一进行立即修复**，确保用户不会遇到运行时错误，然后根据实际需求决定是否实现完整的 `general` 和 `technical` 策略。
-
-
 使用说明:
     python test_chunking_complete.py --demo                    # 运行演示模式
     python test_chunking_complete.py -i document.txt          # 测试文件
@@ -193,16 +44,22 @@ try:
     )
     CHUNKING_ENGINE_AVAILABLE = True
 except ImportError as e:
+    # 这里使用print是合理的，因为logger还没有初始化
     print(f"导入ChunkingEngine失败: {e}")
     print("将使用简化版本的测试功能")
     CHUNKING_ENGINE_AVAILABLE = False
 
 # 尝试导入日志管理器
 try:
-    from utils.logger import SZ_LoggerManager
+    from src.utils.logger import SZ_LoggerManager
     USE_CUSTOM_LOGGER = True
 except ImportError:
-    USE_CUSTOM_LOGGER = False
+    try:
+        # 尝试相对导入
+        from utils.logger import SZ_LoggerManager
+        USE_CUSTOM_LOGGER = True
+    except ImportError:
+        USE_CUSTOM_LOGGER = False
 
 
 class SafeChunkingEngine:
@@ -247,6 +104,8 @@ class SafeChunkingEngine:
         else:
             self.engine = None
             self.logger.warning("ChunkingEngine不可用，将使用简化模式")
+            # 初始化简化模式的质量评估
+            self._init_simple_quality_assessment()
     
     def chunk_document(self, text_content: str, document_metadata: Dict[str, Any],
                       strategy_name: Optional[str] = None) -> List:
@@ -278,9 +137,21 @@ class SafeChunkingEngine:
         Returns:
             list: 简化的分块结果
         """
-        chunk_size = self.config.get('chunk_size', 1000)
-        chunk_overlap = self.config.get('chunk_overlap', 200)
-        separators = self.config.get('separators', ['\n\n', '\n', '。', '！', '？', '.', '!', '?', '；', ';', '，', ',', ' '])
+        # 使用统一的配置管理器获取默认配置
+        try:
+            from core.document_processor.config.config_manager import get_config_manager
+            config_manager = get_config_manager()
+            default_config = config_manager.get_chunking_config('recursive')
+
+            chunk_size = self.config.get('chunk_size', default_config.get('chunk_size', 1000))
+            chunk_overlap = self.config.get('chunk_overlap', default_config.get('chunk_overlap', 200))
+            default_separators = config_manager.get_chunking_separators('recursive')
+            separators = self.config.get('separators', default_separators)
+        except Exception:
+            # 回退到硬编码的默认配置
+            chunk_size = self.config.get('chunk_size', 1000)
+            chunk_overlap = self.config.get('chunk_overlap', 200)
+            separators = self.config.get('separators', ['\n\n', '\n', '。', '！', '？', '.', '!', '?', '；', ';', '，', ',', ' '])
         keep_separator = self.config.get('keep_separator', True)
         is_separator_regex = self.config.get('is_separator_regex', False)
         strip_whitespace = self.config.get('strip_whitespace', True)
@@ -362,12 +233,21 @@ class SafeChunkingEngine:
                 if len(prev_chunk) > chunk_overlap:
                     overlap_content = prev_chunk[-chunk_overlap:]
 
+            # 计算质量评分
+            quality_score = 1.0  # 默认评分
+            if enable_quality_assessment:
+                try:
+                    quality_score = self._calculate_quality_score(chunk_text, metadata)
+                except Exception as e:
+                    self.logger.warning(f"质量评估失败，使用默认评分: {e}")
+                    quality_score = 0.8  # 回退评分
+
             # 创建分块对象
             chunk = {
                 'content': chunk_text,
                 'character_count': len(chunk_text),
                 'word_count': len(chunk_text.split()),
-                'quality_score': 0.8 if enable_quality_assessment else 1.0,  # 根据配置设置质量评分
+                'quality_score': quality_score,
                 'overlap_content': overlap_content,
                 'metadata': {
                     'chunk_id': f"simple_{i:04d}",
@@ -452,6 +332,348 @@ class SafeChunkingEngine:
             },
             'issues': []
         }
+
+    def _init_simple_quality_assessment(self):
+        """初始化简化模式的质量评估"""
+        try:
+            # 简化版本：直接实现基本的质量评估逻辑
+            self.quality_manager = True  # 标记质量评估可用
+            self.logger.info("简化模式质量评估初始化成功")
+
+        except Exception as e:
+            self.logger.warning(f"简化模式质量评估初始化失败: {e}")
+            self.quality_manager = None
+
+    def _calculate_quality_score(self, content: str, metadata: Dict[str, Any]) -> float:
+        """计算质量评分"""
+        try:
+            if not self.quality_manager:
+                return 0.8  # 回退评分
+
+            # 获取质量策略
+            strategy_name = self.config.get('quality_strategy', 'aviation')
+
+            # 根据策略计算质量评分
+            if strategy_name == 'general':
+                return self._calculate_general_quality(content)
+            elif strategy_name == 'technical':
+                return self._calculate_technical_quality(content)
+            elif strategy_name == 'basic':
+                return self._calculate_basic_quality(content)
+            elif strategy_name == 'semantic':
+                return self._calculate_semantic_quality(content)
+            elif strategy_name == 'aviation':
+                return self._calculate_aviation_quality(content)
+            else:
+                return self._calculate_basic_quality(content)
+
+        except Exception as e:
+            self.logger.warning(f"质量评分计算失败: {e}")
+            return 0.8  # 回退评分
+
+    def _calculate_general_quality(self, content: str) -> float:
+        """计算general策略的质量评分"""
+        import re
+
+        score = 0.0
+
+        # 1. 语义完整性 (35%)
+        semantic_score = self._evaluate_semantic_completeness(content)
+        score += semantic_score * 0.35
+
+        # 2. 信息密度 (30%)
+        density_score = self._evaluate_information_density(content)
+        score += density_score * 0.30
+
+        # 3. 结构质量 (25%)
+        structure_score = self._evaluate_structure_quality(content)
+        score += structure_score * 0.25
+
+        # 4. 大小适当性 (10%)
+        size_score = self._evaluate_size_appropriateness(content)
+        score += size_score * 0.10
+
+        return min(1.0, max(0.0, score))
+
+    def _calculate_technical_quality(self, content: str) -> float:
+        """计算technical策略的质量评分"""
+        import re
+
+        score = 0.0
+
+        # 1. 主题一致性 (30%) - 技术文档需要主题集中
+        topic_score = self._evaluate_topic_consistency(content)
+        score += topic_score * 0.30
+
+        # 2. 上下文连贯性 (30%) - 技术逻辑要清晰
+        coherence_score = self._evaluate_context_coherence(content)
+        score += coherence_score * 0.30
+
+        # 3. 语义边界 (25%) - 技术概念边界要清晰
+        boundary_score = self._evaluate_semantic_boundary(content)
+        score += boundary_score * 0.25
+
+        # 4. 语义完整性 (15%)
+        semantic_score = self._evaluate_semantic_completeness(content)
+        score += semantic_score * 0.15
+
+        return min(1.0, max(0.0, score))
+
+    def _calculate_basic_quality(self, content: str) -> float:
+        """计算basic策略的质量评分"""
+        score = 0.0
+
+        # 1. 语义完整性 (40%)
+        semantic_score = self._evaluate_semantic_completeness(content)
+        score += semantic_score * 0.40
+
+        # 2. 信息密度 (30%)
+        density_score = self._evaluate_information_density(content)
+        score += density_score * 0.30
+
+        # 3. 结构质量 (20%)
+        structure_score = self._evaluate_structure_quality(content)
+        score += structure_score * 0.20
+
+        # 4. 大小适当性 (10%)
+        size_score = self._evaluate_size_appropriateness(content)
+        score += size_score * 0.10
+
+        return min(1.0, max(0.0, score))
+
+    def _calculate_semantic_quality(self, content: str) -> float:
+        """计算semantic策略的质量评分"""
+        score = 0.0
+
+        # 1. 语义边界 (30%)
+        boundary_score = self._evaluate_semantic_boundary(content)
+        score += boundary_score * 0.30
+
+        # 2. 主题一致性 (25%)
+        topic_score = self._evaluate_topic_consistency(content)
+        score += topic_score * 0.25
+
+        # 3. 上下文连贯性 (25%)
+        coherence_score = self._evaluate_context_coherence(content)
+        score += coherence_score * 0.25
+
+        # 4. 语义完整性 (20%)
+        semantic_score = self._evaluate_semantic_completeness(content)
+        score += semantic_score * 0.20
+
+        return min(1.0, max(0.0, score))
+
+    def _calculate_aviation_quality(self, content: str) -> float:
+        """计算aviation策略的质量评分"""
+        score = 0.0
+
+        # 1. 航空特定性 (30%)
+        aviation_score = self._evaluate_aviation_specific(content)
+        score += aviation_score * 0.30
+
+        # 2. 语义完整性 (25%)
+        semantic_score = self._evaluate_semantic_completeness(content)
+        score += semantic_score * 0.25
+
+        # 3. 信息密度 (25%)
+        density_score = self._evaluate_information_density(content)
+        score += density_score * 0.25
+
+        # 4. 结构质量 (15%)
+        structure_score = self._evaluate_structure_quality(content)
+        score += structure_score * 0.15
+
+        # 5. 大小适当性 (5%)
+        size_score = self._evaluate_size_appropriateness(content)
+        score += size_score * 0.05
+
+        return min(1.0, max(0.0, score))
+
+    # 基础评估方法
+    def _evaluate_semantic_completeness(self, content: str) -> float:
+        """评估语义完整性"""
+        import re
+
+        # 检查句子完整性
+        sentences = re.split(r'[.!?。！？]', content)
+        valid_sentences = [s.strip() for s in sentences if s.strip()]
+
+        if not valid_sentences:
+            return 0.3
+
+        # 检查是否有结束标点
+        has_ending = bool(re.search(r'[.!?。！？]\s*$', content))
+
+        # 检查平均句子长度
+        avg_length = sum(len(s) for s in valid_sentences) / len(valid_sentences)
+
+        score = 0.5
+        if has_ending:
+            score += 0.3
+        if avg_length >= 10:
+            score += 0.2
+
+        return min(1.0, score)
+
+    def _evaluate_information_density(self, content: str) -> float:
+        """评估信息密度"""
+        import re
+
+        if not content:
+            return 0.0
+
+        # 计算有效字符比例
+        non_whitespace = len(re.sub(r'\s', '', content))
+        effective_ratio = non_whitespace / len(content)
+
+        # 计算关键词密度
+        words = re.findall(r'\b\w+\b', content.lower())
+        if not words:
+            return 0.3
+
+        # 技术关键词
+        tech_keywords = ['系统', '方法', '技术', '配置', '参数', '接口', 'api', 'system', 'method', 'config']
+        keyword_count = sum(1 for word in words if any(kw in word for kw in tech_keywords))
+        keyword_density = keyword_count / len(words)
+
+        # 数值信息密度
+        numbers = re.findall(r'\d+', content)
+        number_density = len(numbers) / len(content) * 100
+
+        # 综合评分
+        score = effective_ratio * 0.4 + min(keyword_density * 5, 1.0) * 0.4 + min(number_density / 5, 1.0) * 0.2
+
+        return min(1.0, max(0.2, score))
+
+    def _evaluate_structure_quality(self, content: str) -> float:
+        """评估结构质量"""
+        import re
+
+        score = 0.6  # 基础分
+
+        # 检查标题结构
+        title_patterns = [r'^#{1,6}\s+', r'^\d+\.', r'^[一二三四五六七八九十]+[、\.]']
+        has_titles = any(re.search(pattern, content, re.MULTILINE) for pattern in title_patterns)
+        if has_titles:
+            score += 0.2
+
+        # 检查列表结构
+        list_patterns = [r'^\s*[-*+]\s+', r'^\s*\d+[.)]\s+']
+        has_lists = any(re.search(pattern, content, re.MULTILINE) for pattern in list_patterns)
+        if has_lists:
+            score += 0.1
+
+        # 检查段落结构
+        paragraphs = content.split('\n\n')
+        if len(paragraphs) > 1:
+            score += 0.1
+
+        return min(1.0, score)
+
+    def _evaluate_size_appropriateness(self, content: str) -> float:
+        """评估大小适当性"""
+        length = len(content)
+        # 使用统一的配置管理器获取目标大小
+        try:
+            from core.document_processor.config.config_manager import get_config_manager
+            config_manager = get_config_manager()
+            default_config = config_manager.get_chunking_config('recursive')
+            target_size = self.config.get('chunk_size', default_config.get('chunk_size', 1000))
+        except Exception:
+            target_size = self.config.get('chunk_size', 1000)
+
+        # 最优区间
+        optimal_min = target_size * 0.8
+        optimal_max = target_size * 1.2
+
+        if optimal_min <= length <= optimal_max:
+            return 1.0
+        elif length < optimal_min:
+            return max(0.3, length / optimal_min)
+        else:
+            return max(0.3, optimal_max / length)
+
+    def _evaluate_topic_consistency(self, content: str) -> float:
+        """评估主题一致性"""
+        import re
+
+        # 简化版本：检查关键词的重复和分布
+        words = re.findall(r'\b\w+\b', content.lower())
+        if len(words) < 5:
+            return 0.5
+
+        # 计算词频
+        word_freq = {}
+        for word in words:
+            if len(word) > 2:  # 忽略太短的词
+                word_freq[word] = word_freq.get(word, 0) + 1
+
+        # 检查是否有主要主题词
+        max_freq = max(word_freq.values()) if word_freq else 0
+        total_words = len(words)
+
+        if max_freq / total_words >= 0.1:  # 有明显的主题词
+            return 0.9
+        elif max_freq / total_words >= 0.05:
+            return 0.7
+        else:
+            return 0.5
+
+    def _evaluate_context_coherence(self, content: str) -> float:
+        """评估上下文连贯性"""
+        import re
+
+        # 检查连接词
+        connectors = ['因此', '所以', '但是', '然而', '同时', '另外', '首先', '其次', '最后',
+                     'therefore', 'however', 'meanwhile', 'also', 'first', 'second', 'finally']
+
+        connector_count = sum(1 for conn in connectors if conn in content.lower())
+
+        # 检查指代词
+        pronouns = ['这', '那', '它', '他们', '这些', '那些', 'this', 'that', 'they', 'these', 'those']
+        pronoun_count = sum(1 for pron in pronouns if pron in content.lower())
+
+        # 基于连接词和指代词的密度评分
+        word_count = len(content.split())
+        if word_count == 0:
+            return 0.5
+
+        connector_density = connector_count / word_count
+        pronoun_density = pronoun_count / word_count
+
+        score = 0.5 + connector_density * 10 + pronoun_density * 5
+        return min(1.0, max(0.3, score))
+
+    def _evaluate_semantic_boundary(self, content: str) -> float:
+        """评估语义边界"""
+        import re
+
+        # 检查开头和结尾的完整性
+        starts_complete = bool(re.match(r'^[A-Z\u4e00-\u9fff]', content.strip()))
+        ends_complete = bool(re.search(r'[.!?。！？]\s*$', content.strip()))
+
+        score = 0.4
+        if starts_complete:
+            score += 0.3
+        if ends_complete:
+            score += 0.3
+
+        return score
+
+    def _evaluate_aviation_specific(self, content: str) -> float:
+        """评估航空特定性"""
+        # 航空相关关键词
+        aviation_keywords = ['飞机', '发动机', '航空', '飞行', '机场', '跑道', '导航', '雷达',
+                           'aircraft', 'engine', 'aviation', 'flight', 'airport', 'runway', 'navigation', 'radar']
+
+        keyword_count = sum(1 for keyword in aviation_keywords if keyword.lower() in content.lower())
+
+        if keyword_count >= 3:
+            return 0.9
+        elif keyword_count >= 1:
+            return 0.7
+        else:
+            return 0.4  # 非航空文档也有基础分
 
 
 class ChunkingTester:
@@ -612,41 +834,53 @@ class ChunkingTester:
         print("📝 RecursiveCharacterChunker 默认分隔符列表")
         print("="*80)
 
-        # 获取默认分隔符列表
-        default_separators = [
-            # 段落分隔符
-            "\\n\\n", "\\n\\n\\n",
+        # 从配置管理器获取默认分隔符列表
+        try:
+            from core.document_processor.config.config_manager import get_config_manager
+            config_manager = get_config_manager()
+            separators = config_manager.get_chunking_separators('recursive')
 
-            # 中文段落标记
-            "\\n第", "\\n章", "\\n节", "\\n条",
+            # 转换为显示格式（转义特殊字符）
+            default_separators = []
+            for sep in separators:
+                if sep == "":
+                    default_separators.append('""')
+                elif sep == "\n":
+                    default_separators.append("\\n")
+                elif sep == "\n\n":
+                    default_separators.append("\\n\\n")
+                elif sep == "\n\n\n":
+                    default_separators.append("\\n\\n\\n")
+                elif sep == "\t":
+                    default_separators.append("\\t")
+                elif sep == "\u200b":
+                    default_separators.append("\\u200b")
+                elif sep == "\uff0c":
+                    default_separators.append("\\uff0c")
+                elif sep == "\u3001":
+                    default_separators.append("\\u3001")
+                elif sep == "\uff0e":
+                    default_separators.append("\\uff0e")
+                elif sep == "\u3002":
+                    default_separators.append("\\u3002")
+                else:
+                    default_separators.append(sep)
 
-            # 英文段落标记
-            "\\nChapter", "\\nSection", "\\nArticle",
+            print("📌 分隔符从配置文件加载成功")
 
-            # 列表和编号
-            "\\n\\n•", "\\n\\n-", "\\n\\n*", "\\n\\n1.", "\\n\\n2.", "\\n\\n3.",
-
-            # 单行分隔符
-            "\\n",
-
-            # 句子分隔符
-            "。", "！", "？", ".", "!", "?",
-
-            # 子句分隔符
-            "；", ";", "，", ",",
-
-            # 词语分隔符
-            " ", "\\t",
-
-            # 中文标点
-            "、", "：", ":",
-
-            # 零宽字符
-            "\\u200b", "\\uff0c", "\\u3001", "\\uff0e", "\\u3002",
-
-            # 最后的回退选项
-            '""'
-        ]
+        except Exception as e:
+            print(f"⚠️  配置文件加载失败，使用硬编码默认值: {e}")
+            # 记录到日志
+            if hasattr(self, 'logger'):
+                self.logger.warning(f"配置文件加载失败，使用硬编码默认值: {e}")
+            # 回退到硬编码的分隔符列表
+            default_separators = [
+                "\\n\\n", "\\n\\n\\n", "\\n第", "\\n章", "\\n节", "\\n条",
+                "\\nChapter", "\\nSection", "\\nArticle",
+                "\\n\\n•", "\\n\\n-", "\\n\\n*", "\\n\\n1.", "\\n\\n2.", "\\n\\n3.",
+                "\\n", "。", "！", "？", ".", "!", "?", "；", ";", "，", ",",
+                " ", "\\t", "、", "：", ":", "\\u200b", "\\uff0c", "\\u3001", "\\uff0e", "\\u3002", '""'
+            ]
 
         print("📌 分隔符按优先级从高到低排序：")
         print("\n🔹 段落级分隔符:")
@@ -705,7 +939,8 @@ class ChunkingTester:
                 
             except Exception as e:
                 print(f"  ❌ 测试失败: {e}")
-        
+                self.logger.error(f"策略 {strategy} 测试失败: {e}")
+
         # 输出对比总结
         if len(results) > 1:
             print(f"\n📊 对比总结:")
@@ -965,6 +1200,7 @@ class ChunkingTester:
                 self.visualize_chunks(result, 'simple')
             except Exception as e:
                 print(f"演示失败: {e}")
+                self.logger.error(f"演示场景 {name} 失败: {e}")
 
         # 添加RecursiveCharacterChunker高级功能演示
         self._demo_recursive_features()
@@ -1225,7 +1461,7 @@ RecursiveCharacterChunker 高级用法:
 
     # 添加质量评分相关参数
     parser.add_argument('--disable-quality-assessment', action='store_true', help='禁用质量评分')
-    parser.add_argument('--quality-strategy', choices=['aviation', 'general', 'technical'], 
+    parser.add_argument('--quality-strategy', choices=['aviation', 'basic', 'semantic', 'length_uniformity', 'content_completeness', 'general', 'technical'],
                        default='aviation', help='质量评估策略 (默认: aviation)')
 
     # 功能参数
@@ -1286,7 +1522,9 @@ RecursiveCharacterChunker 高级用法:
             # 策略对比模式
             if args.input:
                 if not os.path.exists(args.input):
-                    print(f"❌ 文件不存在: {args.input}")
+                    error_msg = f"文件不存在: {args.input}"
+                    print(f"❌ {error_msg}")
+                    tester.logger.error(error_msg)
                     sys.exit(1)
                 with open(args.input, 'r', encoding='utf-8') as f:
                     text = f.read()
@@ -1352,7 +1590,11 @@ RecursiveCharacterChunker 高级用法:
         print("\n\n⏹️  测试被用户中断")
         sys.exit(0)
     except Exception as e:
-        print(f"\n❌ 测试执行失败: {e}")
+        error_msg = f"测试执行失败: {e}"
+        print(f"\n❌ {error_msg}")
+        # 如果tester已初始化，记录到日志
+        if 'tester' in locals():
+            tester.logger.error(error_msg)
         if not args.quiet:
             import traceback
             traceback.print_exc()

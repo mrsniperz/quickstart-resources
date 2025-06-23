@@ -311,39 +311,169 @@ class QualityAssessmentManager:
     def _register_builtin_strategies(self) -> None:
         """注册内置评估策略"""
         try:
-            # 导入策略类
-            from .strategies.aviation_quality import AviationQualityAssessment
-            from .strategies.semantic_quality import SemanticQualityAssessment
-            from .strategies.length_quality import LengthUniformityAssessment
-            from .strategies.completeness_quality import ContentCompletenessAssessment
-
             # 获取策略配置
             strategies_config = self.config.get('strategies', {})
 
-            # 注册基础策略
-            basic_config = strategies_config.get('basic', {})
-            self.register_strategy('basic', BaseQualityAssessment(basic_config))
+            # 注册基础策略（总是可用）
+            try:
+                basic_config = strategies_config.get('basic', {})
+                self.register_strategy('basic', BaseQualityAssessment(basic_config))
+                self.logger.info("基础策略注册成功")
+            except Exception as e:
+                self.logger.error(f"基础策略注册失败: {e}")
 
-            # 注册航空质量评估策略
-            aviation_config = strategies_config.get('aviation', {})
-            self.register_strategy('aviation', AviationQualityAssessment(aviation_config))
+            # 尝试注册航空质量评估策略
+            try:
+                from .strategies.aviation_quality import AviationQualityAssessment
+                aviation_config = strategies_config.get('aviation', {})
+                self.register_strategy('aviation', AviationQualityAssessment(aviation_config))
+                self.logger.info("航空策略注册成功")
+            except ImportError as e:
+                self.logger.warning(f"航空策略导入失败，跳过注册: {e}")
+            except Exception as e:
+                self.logger.warning(f"航空策略注册失败: {e}")
 
-            # 注册语义质量评估策略
-            semantic_config = strategies_config.get('semantic', {})
-            self.register_strategy('semantic', SemanticQualityAssessment(semantic_config))
+            # 尝试注册语义质量评估策略
+            try:
+                from .strategies.semantic_quality import SemanticQualityAssessment
+                semantic_config = strategies_config.get('semantic', {})
+                self.register_strategy('semantic', SemanticQualityAssessment(semantic_config))
+                self.logger.info("语义策略注册成功")
+            except ImportError as e:
+                self.logger.warning(f"语义策略导入失败，跳过注册: {e}")
+            except Exception as e:
+                self.logger.warning(f"语义策略注册失败: {e}")
 
-            # 注册长度均匀性评估策略
-            length_config = strategies_config.get('length_uniformity', {})
-            self.register_strategy('length_uniformity', LengthUniformityAssessment(length_config))
+            # 尝试注册长度均匀性评估策略
+            try:
+                from .strategies.length_quality import LengthUniformityAssessment
+                length_config = strategies_config.get('length_uniformity', {})
+                self.register_strategy('length_uniformity', LengthUniformityAssessment(length_config))
+                self.logger.info("长度策略注册成功")
+            except ImportError as e:
+                self.logger.warning(f"长度策略导入失败，跳过注册: {e}")
+            except Exception as e:
+                self.logger.warning(f"长度策略注册失败: {e}")
 
-            # 注册内容完整性评估策略
-            completeness_config = strategies_config.get('content_completeness', {})
-            self.register_strategy('content_completeness', ContentCompletenessAssessment(completeness_config))
+            # 尝试注册内容完整性评估策略
+            try:
+                from .strategies.completeness_quality import ContentCompletenessAssessment
+                completeness_config = strategies_config.get('content_completeness', {})
+                self.register_strategy('content_completeness', ContentCompletenessAssessment(completeness_config))
+                self.logger.info("完整性策略注册成功")
+            except ImportError as e:
+                self.logger.warning(f"完整性策略导入失败，跳过注册: {e}")
+            except Exception as e:
+                self.logger.warning(f"完整性策略注册失败: {e}")
 
-            self.logger.info("内置策略注册完成")
+            # 注册策略别名映射
+            try:
+                self._register_strategy_aliases(strategies_config)
+            except Exception as e:
+                self.logger.warning(f"策略别名注册失败: {e}")
+
+            # 确保至少有基础策略可用
+            if not self.strategies:
+                self.logger.error("没有可用的质量评估策略")
+                # 创建一个最基本的回退策略
+                self.register_strategy('fallback', BaseQualityAssessment({}))
+
+            self.logger.info(f"内置策略注册完成，可用策略: {list(self.strategies.keys())}")
 
         except Exception as e:
             self.logger.error(f"内置策略注册失败: {e}")
+            # 确保至少有一个回退策略
+            if not self.strategies:
+                try:
+                    self.register_strategy('fallback', BaseQualityAssessment({}))
+                    self.logger.info("创建回退策略成功")
+                except Exception as fallback_error:
+                    self.logger.error(f"创建回退策略失败: {fallback_error}")
+
+    def _register_strategy_aliases(self, strategies_config: Dict[str, Any]) -> None:
+        """
+        注册策略别名映射
+
+        Args:
+            strategies_config: 策略配置字典
+        """
+        try:
+            # general策略：基于BaseQualityAssessment，配置更平衡的权重参数
+            general_config = strategies_config.get('general', {})
+
+            # 设置general策略的默认配置
+            general_defaults = {
+                'weights': {
+                    'semantic_completeness': 0.35,    # 比basic稍高，更注重语义
+                    'information_density': 0.30,      # 保持平衡
+                    'structure_quality': 0.25,        # 比basic稍高，更注重结构
+                    'size_appropriateness': 0.10      # 保持基础权重
+                },
+                'min_chunk_size': 150,               # 比basic稍大，适合一般文档
+                'max_chunk_size': 1800,              # 比basic稍小，避免过长
+                'optimal_chunk_size': 1000           # 标准目标大小
+            }
+
+            # 合并用户配置和默认配置
+            for key, value in general_defaults.items():
+                if key not in general_config:
+                    general_config[key] = value
+                elif key == 'weights' and isinstance(value, dict):
+                    # 权重配置需要深度合并
+                    weights = general_config.get('weights', {})
+                    for weight_key, weight_value in value.items():
+                        if weight_key not in weights:
+                            weights[weight_key] = weight_value
+                    general_config['weights'] = weights
+
+            self.register_strategy('general', BaseQualityAssessment(general_config))
+            self.logger.info("general策略别名注册完成")
+
+            # technical策略：基于SemanticQualityAssessment，配置适合技术文档的参数
+            technical_config = strategies_config.get('technical', {})
+
+            # 设置technical策略的默认配置
+            technical_defaults = {
+                'weights': {
+                    'semantic_boundary': 0.25,         # 比semantic稍低，技术文档边界相对明确
+                    'topic_consistency': 0.30,        # 比semantic稍高，技术文档主题要集中
+                    'context_coherence': 0.30,        # 比semantic稍高，技术逻辑要清晰
+                    'semantic_completeness': 0.15      # 比semantic稍低，更注重逻辑性
+                },
+                'semantic_threshold': 0.75,           # 比semantic稍高，技术术语相似度要求高
+                'coherence_window': 5                 # 比semantic大，技术文档上下文窗口大
+            }
+
+            # 合并用户配置和默认配置
+            for key, value in technical_defaults.items():
+                if key not in technical_config:
+                    technical_config[key] = value
+                elif key == 'weights' and isinstance(value, dict):
+                    # 权重配置需要深度合并
+                    weights = technical_config.get('weights', {})
+                    for weight_key, weight_value in value.items():
+                        if weight_key not in weights:
+                            weights[weight_key] = weight_value
+                    technical_config['weights'] = weights
+
+            # 导入SemanticQualityAssessment类
+            from .strategies.semantic_quality import SemanticQualityAssessment
+            self.register_strategy('technical', SemanticQualityAssessment(technical_config))
+            self.logger.info("technical策略别名注册完成")
+
+        except Exception as e:
+            self.logger.error(f"策略别名注册失败: {e}")
+            # 如果别名注册失败，至少提供基本的映射
+            try:
+                if 'general' not in self.strategies and 'basic' in self.strategies:
+                    self.strategies['general'] = self.strategies['basic']
+                    self.logger.warning("general策略回退到basic策略")
+
+                if 'technical' not in self.strategies and 'semantic' in self.strategies:
+                    self.strategies['technical'] = self.strategies['semantic']
+                    self.logger.warning("technical策略回退到semantic策略")
+            except Exception as fallback_error:
+                self.logger.error(f"策略别名回退失败: {fallback_error}")
     
     def _generate_cache_key(self, chunk: TextChunk, strategy_name: str, context: Optional[Dict[str, Any]]) -> str:
         """生成缓存键"""

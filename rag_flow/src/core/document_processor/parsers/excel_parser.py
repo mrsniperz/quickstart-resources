@@ -6,13 +6,21 @@
 版本: v1.0.0
 """
 
-import logging
 from typing import Dict, List, Optional, Any, Union
 from pathlib import Path
 from dataclasses import dataclass
 from openpyxl import load_workbook
 from openpyxl.workbook import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
+
+# 导入统一日志管理器
+try:
+    from src.utils.logger import SZ_LoggerManager
+    logger = SZ_LoggerManager.setup_logger(__name__)
+except ImportError:
+    # 回退到标准logging
+    import logging
+    logger = logging.getLogger(__name__)
 
 from ..extractors.metadata_extractor import MetadataExtractor
 
@@ -52,7 +60,7 @@ class ExcelParser:
                 - max_cols (int): 最大读取列数，默认None
         """
         self.config = config or {}
-        self.logger = logging.getLogger(__name__)
+        self.logger = logger
         
         # 初始化提取器
         self.metadata_extractor = MetadataExtractor()

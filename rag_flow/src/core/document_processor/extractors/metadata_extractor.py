@@ -6,13 +6,21 @@
 版本: v1.0.0
 """
 
-import logging
 from typing import Dict, List, Optional, Any, Union
 from pathlib import Path
 from datetime import datetime
 import hashlib
 import mimetypes
 from dataclasses import dataclass
+
+# 导入统一日志管理器
+try:
+    from src.utils.logger import SZ_LoggerManager
+    logger = SZ_LoggerManager.setup_logger(__name__)
+except ImportError:
+    # 回退到标准logging
+    import logging
+    logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -57,7 +65,7 @@ class MetadataExtractor:
                 - extract_content_stats (bool): 是否提取内容统计，默认True
         """
         self.config = config or {}
-        self.logger = logging.getLogger(__name__)
+        self.logger = logger
         
         # 配置参数
         self.include_file_hash = self.config.get('include_file_hash', False)

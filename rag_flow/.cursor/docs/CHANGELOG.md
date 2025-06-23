@@ -1,5 +1,32 @@
 # 变更日志
 
+## [2025-06-23] 日志系统统一修复
+
+### 修复 🐛
+- **[全项目]**: 统一所有Python文件的日志管理，修复日志使用不一致问题
+  *原因：项目中各个模块使用独立的logger实例，导致日志配置分散且难以统一管理。*
+- **[CLI工具]**: 修复docling_cli.py中的日志配置问题，移除logging.basicConfig()调用
+  *影响范围：CLI工具的日志输出现在通过统一的SZ_LoggerManager管理。*
+- **[测试脚本]**: 完善test_chunking_complete.py的统一logger使用，将调试和错误信息改为logger调用
+  *影响范围：测试脚本的错误处理和调试信息现在正确记录到日志文件。*
+- **[解析器模块]**: 修复所有解析器文件的日志导入和使用，包括document_processor.py、pdf_parser.py、word_parser.py、excel_parser.py、powerpoint_parser.py、docling_parser.py
+  *影响范围：所有文档解析功能现在使用统一的日志配置。*
+
+### 优化 🚀
+- **[日志管理]**: 实现统一的日志管理架构，所有模块现在使用src.utils.logger.SZ_LoggerManager
+  *影响范围：整个项目的日志输出现在统一格式化，便于监控和调试。*
+- **[工具模块]**: 优化batch_processor.py和performance_monitor.py的日志使用
+- **[配置模块]**: 统一config_manager.py的日志管理
+- **[提取器模块]**: 统一metadata_extractor.py、table_extractor.py、image_extractor.py的日志管理
+- **[分块模块]**: 统一chunking_engine.py、aviation_strategy.py、recursive_chunker.py、semantic_chunker.py、structure_chunker.py的日志管理
+- **[验证器模块]**: 统一chunk_validator.py和quality_controller.py的日志管理
+
+### 变更 ⚠️
+- **[日志导入]**: 所有文件的日志导入方式从`import logging; logger = logging.getLogger(__name__)`改为统一的SZ_LoggerManager导入
+  *影响范围：开发者在添加新模块时需要使用统一的日志导入模式。*
+- **[错误处理]**: 部分print()语句被替换为适当的logger调用，特别是错误和调试信息
+  *影响范围：错误信息现在会记录到日志文件而不仅仅是控制台输出。*
+
 ## [2025-06-18] 递归分块器功能增强
 
 ### 新增 ✨

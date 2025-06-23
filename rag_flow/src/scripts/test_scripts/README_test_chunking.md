@@ -2,43 +2,72 @@
 
 ## 概述
 
-本目录包含两个专门为RAG Flow项目设计的文档分块功能测试脚本：
+本目录包含专门为RAG Flow项目设计的文档分块功能测试脚本：
 
-1. **`test_chunking.py`** - 简化版本，专门测试 `recursive_chunker` 的分块效果
-2. **`test_chunking_complete.py`** - 完整版本，支持所有可用的分块策略，具有智能依赖处理
+**`test_chunking_complete.py`** - 完整功能测试脚本，支持所有可用的分块策略和质量评估功能，具有智能依赖处理
 
-两个脚本都提供了全面的测试功能，包括可视化分块结果、性能统计分析和多种使用场景演示。
+该脚本提供了全面的测试功能，包括可视化分块结果、性能统计分析、多种质量评估策略和各种使用场景演示。
 
 ## 主要功能
 
-## 脚本特性对比
-
-| 特性 | test_chunking.py | test_chunking_complete.py |
-|------|------------------|---------------------------|
-| 分块策略 | 仅 recursive | 所有可用策略 |
-| 依赖处理 | 需要完整环境 | 智能降级处理 |
-| 策略对比 | ❌ | ✅ |
-| 策略列表 | ❌ | ✅ |
-| 适用场景 | 专门测试递归分块 | 全面功能测试 |
-
 ### 🎯 核心功能
-- **多策略测试**: 支持所有内置分块策略的测试（完整版）
-- **智能降级**: 当依赖缺失时自动切换到简化模式（完整版）
+- **多策略测试**: 支持所有内置分块策略的测试
+- **智能降级**: 当依赖缺失时自动切换到简化模式
+- **质量评估**: 支持多种质量评估策略，包括动态评分算法
+- **策略别名映射**: 支持general和technical策略别名，提供针对性的质量评估
 - **可视化展示**: 直观展示分块结果和统计信息
 - **性能分析**: 提供详细的性能统计和基准测试
 - **灵活输入**: 支持文件输入、直接文本输入和预设示例
 - **多种输出**: 支持详细、简洁和JSON三种输出格式
-- **策略对比**: 同时测试多种策略并对比效果（完整版）
+- **策略对比**: 同时测试多种策略并对比效果
 
 ### 🔧 支持的分块策略
-- `recursive`: 递归字符分块器（两个版本都支持）
-- `semantic`: 语义分块器（仅完整版）
-- `structure`: 结构分块器（仅完整版）
-- `aviation_maintenance`: 航空维修文档分块器（仅完整版）
-- `aviation_regulation`: 航空规章分块器（仅完整版）
-- `aviation_standard`: 航空标准分块器（仅完整版）
-- `aviation_training`: 航空培训分块器（仅完整版）
-- `simple`: 简化分块器（完整版降级模式）
+- `recursive`: 递归字符分块器
+- `semantic`: 语义分块器
+- `structure`: 结构分块器
+- `aviation_maintenance`: 航空维修文档分块器
+- `aviation_regulation`: 航空规章分块器
+- `aviation_standard`: 航空标准分块器
+- `aviation_training`: 航空培训分块器
+- `simple`: 简化分块器（降级模式）
+
+### 🎯 质量评估策略
+系统提供七种质量评估策略：
+
+1. **aviation**（默认）：针对航空领域文档优化的评估策略
+   - 航空特定性评估(30%) + 语义完整性(25%) + 信息密度(25%) + 结构质量(15%) + 大小适当性(5%)
+   - 适用场景：航空维修手册、法规文档、技术标准
+
+2. **basic**：通用文档的基础评估策略
+   - 语义完整性(40%) + 信息密度(30%) + 结构质量(20%) + 大小适当性(10%)
+   - 适用场景：一般性文档、说明书、报告
+
+3. **semantic**：专注于语义连贯性的评估策略
+   - 语义边界(30%) + 主题一致性(25%) + 上下文连贯性(25%) + 语义完整性(20%)
+   - 适用场景：学术论文、技术文档、需要高语义连贯性的内容
+
+4. **length_uniformity**：专注于分块长度均匀性的评估策略
+   - 大小适当性(40%) + 长度均匀性(30%) + 相对一致性(20%) + 变异系数(10%)
+   - 适用场景：需要统一分块大小的应用
+
+5. **content_completeness**：专注于内容完整性的评估策略
+   - 信息单元完整性(40%) + 逻辑结构完整性(30%) + 引用完整性(20%) + 上下文依赖完整性(10%)
+   - 适用场景：结构化文档、技术手册、需要保证信息完整性的内容
+
+6. **general**：通用策略（策略别名映射）
+   - 基于BaseQualityAssessment，配置更平衡的权重参数
+   - 语义完整性(35%) + 信息密度(30%) + 结构质量(25%) + 大小适当性(10%)
+   - 适用场景：日常办公文档、一般性文章、混合类型文档
+
+7. **technical**：技术文档策略（策略别名映射）
+   - 基于SemanticQualityAssessment，针对技术文档优化
+   - 主题一致性(30%) + 上下文连贯性(30%) + 语义边界(25%) + 语义完整性(15%)
+   - 适用场景：API文档、技术手册、代码文档、配置说明
+
+### ✨ 策略别名映射
+- **general策略**：实际使用优化的BaseQualityAssessment实现，权重更平衡
+- **technical策略**：实际使用优化的SemanticQualityAssessment实现，专门针对技术文档
+- **动态评分**：所有策略都支持基于内容的动态质量评分，不再返回固定值
 
 ## 安装和环境要求
 
@@ -55,13 +84,6 @@
 ### 基础用法
 
 #### 1. 演示模式（推荐新手使用）
-
-**简化版本**：
-```bash
-python src/scripts/test_scripts/test_chunking.py --demo
-```
-
-**完整版本**：
 ```bash
 python src/scripts/test_scripts/test_chunking_complete.py --demo
 ```
@@ -72,7 +94,7 @@ python src/scripts/test_scripts/test_chunking_complete.py --demo
 - 代码文档分块
 - 结构化文档分块
 
-#### 2. 查看可用策略（仅完整版）
+#### 2. 查看可用策略
 ```bash
 python src/scripts/test_scripts/test_chunking_complete.py --list-strategies
 ```
@@ -80,44 +102,35 @@ python src/scripts/test_scripts/test_chunking_complete.py --list-strategies
 
 #### 3. 文件输入测试
 ```bash
-# 简化版本
-python src/scripts/test_scripts/test_chunking.py -i /path/to/your/document.txt
-
-# 完整版本
 python src/scripts/test_scripts/test_chunking_complete.py -i /path/to/your/document.txt
 ```
 测试指定文件的分块效果。
 
 #### 4. 直接文本测试
 ```bash
-# 简化版本
-python src/scripts/test_scripts/test_chunking.py -t "这是要测试的文本内容"
-
-# 完整版本
 python src/scripts/test_scripts/test_chunking_complete.py -t "这是要测试的文本内容"
 ```
 直接测试输入的文本内容。
 
 #### 5. 性能测试
 ```bash
-# 简化版本
-python src/scripts/test_scripts/test_chunking.py --performance
-
-# 完整版本
 python src/scripts/test_scripts/test_chunking_complete.py --performance
 ```
 运行性能基准测试，测试不同大小文档的处理性能。
 
-#### 6. 策略对比（仅完整版）
+#### 6. 策略对比
 ```bash
 python src/scripts/test_scripts/test_chunking_complete.py --compare -t "测试文本"
 ```
 同时使用多种策略处理同一文档，并对比效果。
 
-#### 7. 质量评分控制（仅完整版）
+#### 7. 质量评分控制
 ```bash
 # 使用特定质量评估策略
 python src/scripts/test_scripts/test_chunking_complete.py -t "测试文本" --quality-strategy technical
+
+# 使用general策略（通用文档）
+python src/scripts/test_scripts/test_chunking_complete.py -t "测试文本" --quality-strategy general
 
 # 禁用质量评分功能
 python src/scripts/test_scripts/test_chunking_complete.py -t "测试文本" --disable-quality-assessment
@@ -132,16 +145,16 @@ python src/scripts/test_scripts/test_chunking_complete.py -t "测试文本" --va
 #### 自定义分块参数
 ```bash
 # 使用递归分块器，设置分块大小为500，重叠为100
-python src/scripts/test_scripts/test_chunking.py -t "测试文本" -s recursive --chunk-size 500 --chunk-overlap 100
+python src/scripts/test_scripts/test_chunking_complete.py -t "测试文本" -s recursive --chunk-size 500 --chunk-overlap 100
 
-# 测试航空维修文档（仅完整版）
+# 测试航空维修文档
 python src/scripts/test_scripts/test_chunking_complete.py -i manual.txt -s aviation_maintenance
 
 # 设置最小和最大分块大小
-python src/scripts/test_scripts/test_chunking.py -t "测试文本" --min-chunk-size 50 --max-chunk-size 1500
+python src/scripts/test_scripts/test_chunking_complete.py -t "测试文本" --min-chunk-size 50 --max-chunk-size 1500
 ```
 
-#### RecursiveCharacterChunker 高级功能（完整版）
+#### RecursiveCharacterChunker 高级功能
 
 **自定义分隔符列表**：
 ```bash
@@ -185,71 +198,76 @@ python src/scripts/test_scripts/test_chunking_complete.py --show-separators
 #### 不同输出格式
 ```bash
 # 简洁输出
-python src/scripts/test_scripts/test_chunking.py --demo --output-format simple
+python src/scripts/test_scripts/test_chunking_complete.py --demo --output-format simple
 
 # JSON格式输出（便于程序处理）
-python src/scripts/test_scripts/test_chunking.py -t "测试文本" --output-format json
+python src/scripts/test_scripts/test_chunking_complete.py -t "测试文本" --output-format json
 
 # 静默模式（只输出结果）
-python src/scripts/test_scripts/test_chunking.py -t "测试文本" --quiet
+python src/scripts/test_scripts/test_chunking_complete.py -t "测试文本" --quiet
 ```
 
 ## 命令行参数完整参考表
 
 ### 输入参数（互斥组）
 
-| 参数 | 简写 | 类型 | 默认值 | 说明 | 示例 | 支持版本 |
-|------|------|------|--------|------|------|----------|
-| `--input` | `-i` | str | - | 指定输入文件路径 | `-i document.txt` | 两个版本 |
-| `--text` | `-t` | str | - | 直接输入文本内容 | `-t "测试文本"` | 两个版本 |
-| `--demo` | - | flag | False | 运行演示模式 | `--demo` | 两个版本 |
-| `--performance` | - | flag | False | 运行性能测试模式 | `--performance` | 两个版本 |
-| `--list-strategies` | - | flag | False | 列出可用策略 | `--list-strategies` | 仅完整版 |
-| `--show-separators` | - | flag | False | 显示默认分隔符列表 | `--show-separators` | 仅完整版 |
+| 参数 | 简写 | 类型 | 默认值 | 说明 | 示例 |
+|------|------|------|--------|------|------|
+| `--input` | `-i` | str | - | 指定输入文件路径 | `-i document.txt` |
+| `--text` | `-t` | str | - | 直接输入文本内容 | `-t "测试文本"` |
+| `--demo` | - | flag | False | 运行演示模式 | `--demo` |
+| `--performance` | - | flag | False | 运行性能测试模式 | `--performance` |
+| `--list-strategies` | - | flag | False | 列出可用策略 | `--list-strategies` |
+| `--show-separators` | - | flag | False | 显示默认分隔符列表 | `--show-separators` |
 
 ### 分块配置参数
 
-| 参数 | 简写 | 类型 | 默认值 | 说明 | 示例 | 支持版本 |
-|------|------|------|--------|------|------|----------|
-| `--strategy` | `-s` | str | auto | 分块策略名称 | `-s recursive` | 完整版全部/简化版仅recursive |
-| `--chunk-size` | - | int | 1000 | 分块大小（字符数） | `--chunk-size 500` | 两个版本 |
-| `--chunk-overlap` | - | int | 200 | 重叠大小（字符数） | `--chunk-overlap 100` | 两个版本 |
-| `--min-chunk-size` | - | int | 100 | 最小分块大小 | `--min-chunk-size 50` | 两个版本 |
-| `--max-chunk-size` | - | int | 2000 | 最大分块大小 | `--max-chunk-size 1500` | 两个版本 |
-| `--disable-quality-assessment` | - | flag | False | 禁用质量评分 | `--disable-quality-assessment` | 仅完整版 |
-| `--quality-strategy` | - | choice | aviation | 质量评估策略 | `--quality-strategy general` | 仅完整版 |
+| 参数 | 简写 | 类型 | 默认值 | 说明 | 示例 |
+|------|------|------|--------|------|------|
+| `--strategy` | `-s` | str | auto | 分块策略名称 | `-s recursive` |
+| `--chunk-size` | - | int | 1000 | 分块大小（字符数） | `--chunk-size 500` |
+| `--chunk-overlap` | - | int | 200 | 重叠大小（字符数） | `--chunk-overlap 100` |
+| `--min-chunk-size` | - | int | 100 | 最小分块大小 | `--min-chunk-size 50` |
+| `--max-chunk-size` | - | int | 2000 | 最大分块大小 | `--max-chunk-size 1500` |
+| `--disable-quality-assessment` | - | flag | False | 禁用质量评分 | `--disable-quality-assessment` |
+| `--quality-strategy` | - | choice | aviation | 质量评估策略 | `--quality-strategy general` |
+
+### 质量评估策略选项
+
+| 策略名称 | 说明 | 适用场景 |
+|---------|------|----------|
+| `aviation` | 航空领域专用策略（默认） | 航空维修手册、法规文档 |
+| `basic` | 基础通用策略 | 一般性文档、说明书 |
+| `semantic` | 语义连贯性策略 | 学术论文、技术文档 |
+| `length_uniformity` | 长度均匀性策略 | 需要统一分块大小的应用 |
+| `content_completeness` | 内容完整性策略 | 结构化文档、技术手册 |
+| `general` | 通用策略（别名映射） | 日常办公文档、混合类型文档 |
+| `technical` | 技术文档策略（别名映射） | API文档、代码文档、配置说明 |
 
 ### RecursiveCharacterChunker 特有参数
 
-| 参数 | 简写 | 类型 | 默认值 | 说明 | 示例 | 支持版本 |
-|------|------|------|--------|------|------|----------|
-| `--separators` | - | list | 内置列表 | 自定义分隔符列表 | `--separators "。" "！" "？"` | 仅完整版 |
-| `--is-separator-regex` | - | flag | False | 分隔符是否为正则表达式 | `--is-separator-regex` | 仅完整版 |
-| `--keep-separator` | - | flag | True | 是否保留分隔符 | `--keep-separator` | 仅完整版 |
-| `--no-keep-separator` | - | flag | False | 不保留分隔符 | `--no-keep-separator` | 仅完整版 |
-| `--add-start-index` | - | flag | False | 添加起始索引信息 | `--add-start-index` | 仅完整版 |
-| `--no-strip-whitespace` | - | flag | False | 不去除空白字符 | `--no-strip-whitespace` | 仅完整版 |
-
-### 质量评分配置参数
-
-| 参数 | 简写 | 类型 | 默认值 | 说明 | 示例 | 支持版本 |
-|------|------|------|--------|------|------|----------|
-| `--disable-quality-assessment` | - | flag | False | 禁用质量评分功能 | `--disable-quality-assessment` | 仅完整版 |
-| `--quality-strategy` | - | choice | aviation | 质量评估策略 | `--quality-strategy general` | 仅完整版 |
+| 参数 | 简写 | 类型 | 默认值 | 说明 | 示例 |
+|------|------|------|--------|------|------|
+| `--separators` | - | list | 内置列表 | 自定义分隔符列表 | `--separators "。" "！" "？"` |
+| `--is-separator-regex` | - | flag | False | 分隔符是否为正则表达式 | `--is-separator-regex` |
+| `--keep-separator` | - | flag | True | 是否保留分隔符 | `--keep-separator` |
+| `--no-keep-separator` | - | flag | False | 不保留分隔符 | `--no-keep-separator` |
+| `--add-start-index` | - | flag | False | 添加起始索引信息 | `--add-start-index` |
+| `--no-strip-whitespace` | - | flag | False | 不去除空白字符 | `--no-strip-whitespace` |
 
 ### 功能控制参数
 
-| 参数 | 简写 | 类型 | 默认值 | 说明 | 示例 | 支持版本 |
-|------|------|------|--------|------|------|----------|
-| `--compare` | - | flag | False | 对比不同策略 | `--compare` | 仅完整版 |
-| `--validate` | - | flag | False | 详细验证分块结果 | `--validate` | 仅完整版 |
+| 参数 | 简写 | 类型 | 默认值 | 说明 | 示例 |
+|------|------|------|--------|------|------|
+| `--compare` | - | flag | False | 对比不同策略 | `--compare` |
+| `--validate` | - | flag | False | 详细验证分块结果 | `--validate` |
 
 ### 输出控制参数
 
-| 参数 | 简写 | 类型 | 默认值 | 说明 | 示例 | 支持版本 |
-|------|------|------|--------|------|------|----------|
-| `--output-format` | - | choice | detailed | 输出格式 | `--output-format json` | 两个版本 |
-| `--quiet` | `-q` | flag | False | 静默模式，只输出结果 | `--quiet` | 两个版本 |
+| 参数 | 简写 | 类型 | 默认值 | 说明 | 示例 |
+|------|------|------|--------|------|------|
+| `--output-format` | - | choice | detailed | 输出格式 | `--output-format json` |
+| `--quiet` | `-q` | flag | False | 静默模式，只输出结果 | `--quiet` |
 
 ### 输出格式选项
 
@@ -342,9 +360,9 @@ python src/scripts/test_scripts/test_chunking.py -t "测试文本" --quiet
 ### 1. 开发调试场景
 ```bash
 # 测试新的分块参数配置
-python src/scripts/test_scripts/test_chunking.py -i test_doc.txt --chunk-size 800 --chunk-overlap 150
+python src/scripts/test_scripts/test_chunking_complete.py -i test_doc.txt --chunk-size 800 --chunk-overlap 150
 
-# 对比不同策略的效果（完整版）
+# 对比不同策略的效果
 python src/scripts/test_scripts/test_chunking_complete.py --compare -i doc.txt
 
 # 测试自定义分隔符效果
@@ -352,6 +370,7 @@ python src/scripts/test_scripts/test_chunking_complete.py -t "测试文本" --se
 
 # 测试不同质量评估策略
 python src/scripts/test_scripts/test_chunking_complete.py -t "测试文本" --quality-strategy general
+python src/scripts/test_scripts/test_chunking_complete.py -t "测试文本" --quality-strategy technical
 
 # 禁用质量评分功能
 python src/scripts/test_scripts/test_chunking_complete.py -t "测试文本" --disable-quality-assessment
@@ -360,21 +379,21 @@ python src/scripts/test_scripts/test_chunking_complete.py -t "测试文本" --di
 ### 2. 性能优化场景
 ```bash
 # 运行性能基准测试
-python src/scripts/test_scripts/test_chunking.py --performance
+python src/scripts/test_scripts/test_chunking_complete.py --performance
 
 # 测试大文档处理能力
-python src/scripts/test_scripts/test_chunking.py -i large_document.txt --quiet
+python src/scripts/test_scripts/test_chunking_complete.py -i large_document.txt --quiet
 ```
 
 ### 3. 文档预处理场景
 ```bash
 # 生成JSON格式的分块结果用于后续处理
-python src/scripts/test_scripts/test_chunking.py -i document.txt --output-format json > chunks.json
+python src/scripts/test_scripts/test_chunking_complete.py -i document.txt --output-format json > chunks.json
 
 # 批量测试多个文档
 for file in docs/*.txt; do
     echo "Processing $file"
-    python src/scripts/test_scripts/test_chunking.py -i "$file" --output-format simple
+    python src/scripts/test_scripts/test_chunking_complete.py -i "$file" --output-format simple
 done
 ```
 
@@ -393,12 +412,41 @@ python src/scripts/test_scripts/test_chunking_complete.py --show-separators
 python src/scripts/test_scripts/test_chunking_complete.py -t "第一段。第二段！第三段？" --separators "。" "！" "？" --chunk-size 15
 
 # 展示不同质量评估策略的效果
-python src/scripts/test_scripts/test_chunking_complete.py -t "测试文本" --quality-strategy technical --validate
+python src/scripts/test_scripts/test_chunking_complete.py -t "技术文档示例" --quality-strategy technical --validate
+python src/scripts/test_scripts/test_chunking_complete.py -t "日常文档示例" --quality-strategy general --validate
 
-# 对比启用和禁用质量评分的效果
-python src/scripts/test_scripts/test_chunking_complete.py --compare -t "测试文本"
-python src/scripts/test_scripts/test_chunking_complete.py --compare -t "测试文本" --disable-quality-assessment
+# 对比不同质量评估策略
+python src/scripts/test_scripts/test_chunking_complete.py -t "测试文本" --quality-strategy aviation
+python src/scripts/test_scripts/test_chunking_complete.py -t "测试文本" --quality-strategy technical
+python src/scripts/test_scripts/test_chunking_complete.py -t "测试文本" --quality-strategy general
 ```
+
+## 注意事项
+
+### 环境依赖
+- **test_chunking_complete.py**: 具有智能降级功能，在依赖缺失时自动切换到简化模式
+- 完整功能需要RAG Flow环境，简化模式只需要基本Python环境
+
+### 推荐使用
+- **新手用户**: 建议使用 `test_chunking_complete.py --demo` 开始
+- **开发调试**: 建议使用完整功能进行策略对比和质量评估
+- **性能测试**: 支持多种策略的性能基准测试
+- **生产环境**: 具有良好的错误处理和降级机制
+
+### 性能考虑
+- 大文档（>10MB）建议使用 `--quiet` 模式减少输出
+- 性能测试模式会生成大量测试数据，请确保有足够的磁盘空间
+- 质量评分功能现在支持动态评分，处理时间合理，如不需要可使用 `--disable-quality-assessment` 禁用
+
+### 质量评估特性
+- **动态评分**: 所有质量评估策略都基于内容进行动态计算，不再返回固定值
+- **策略别名**: general和technical策略通过别名映射实现，提供针对性的评估
+- **真实评估**: 语义完整性、信息密度、结构质量等维度都有实际的评估算法
+
+### 输出文件
+- 测试结果会保存在 `test_results/` 目录下
+- JSON格式输出便于程序处理和后续分析
+- 性能报告包含详细的基准测试数据
 
 ## 故障排除
 
@@ -429,12 +477,12 @@ python src/scripts/test_scripts/test_chunking_complete.py --compare -t "测试�
 
 2. **使用简洁模式快速测试**
    ```bash
-   python src/scripts/test_scripts/test_chunking.py -t "测试文本" --output-format simple
+   python src/scripts/test_scripts/test_chunking_complete.py -t "测试文本" --output-format simple
    ```
 
 3. **JSON输出便于程序处理**
    ```bash
-   python src/scripts/test_scripts/test_chunking.py -t "测试文本" --output-format json | jq .
+   python src/scripts/test_scripts/test_chunking_complete.py -t "测试文本" --output-format json | jq .
    ```
 
 ## RecursiveCharacterChunker 深度解析
@@ -650,20 +698,44 @@ Response Formatting (JSON/Protobuf)
 
 ### 质量评分概述
 
-RAG Flow 的分块引擎内置了质量评分功能，用于评估每个分块的质量。质量评分是一个0到1之间的浮点数，值越高表示质量越好。质量评分考虑以下因素：
+RAG Flow 的分块引擎内置了先进的质量评分功能，用于评估每个分块的质量。质量评分是一个0到1之间的浮点数，值越高表示质量越好。
 
-1. **分块大小**：是否在理想范围内
-2. **内容密度**：文本内容的信息密度
-3. **结构完整性**：段落、句子结构是否完整
-4. **上下文连贯性**：与相邻分块的连贯程度
+### 🎯 核心特性
 
-### 质量评估策略
+1. **动态评分算法**：基于文本内容进行实时计算，不再返回固定值
+2. **多维度评估**：从语义完整性、信息密度、结构质量等多个维度综合评估
+3. **策略别名映射**：支持general和technical策略别名，提供针对性评估
+4. **智能权重配置**：不同策略采用不同的评估权重，适应各种文档类型
 
-系统提供三种质量评估策略：
+### 🔧 评估维度详解
 
-1. **aviation**（默认）：针对航空领域文档优化的评估策略
-2. **general**：通用文档的评估策略
-3. **technical**：技术文档的评估策略
+#### 语义完整性评估
+- **句子完整性**：检查句子结构和结束标点
+- **段落完整性**：评估段落结构的合理性
+- **语义单元完整性**：检测定义、列举等语义单元
+- **截断检测**：识别明显的内容截断标志
+
+#### 信息密度评估
+- **有效字符比例**：非空白字符占比
+- **关键词密度**：技术词汇和重要概念的分布
+- **数值信息密度**：数字、参数等技术信息的密度
+- **冗余度检测**：重复内容的识别和评估
+
+#### 结构质量评估
+- **标题结构**：标题层次和格式规范性
+- **段落结构**：段落组织的合理性
+- **列表结构**：列表格式的规范性
+- **格式一致性**：整体格式的统一性
+
+### 📊 质量评估策略对比
+
+| 策略 | 语义完整性 | 信息密度 | 结构质量 | 其他维度 | 适用场景 |
+|------|-----------|----------|----------|----------|----------|
+| **aviation** | 25% | 25% | 15% | 航空特定性30% + 大小适当性5% | 航空文档 |
+| **basic** | 40% | 30% | 20% | 大小适当性10% | 通用文档 |
+| **semantic** | 20% | - | - | 语义边界30% + 主题一致性25% + 上下文连贯性25% | 学术技术文档 |
+| **general** | 35% | 30% | 25% | 大小适当性10% | 日常办公文档 |
+| **technical** | 15% | - | - | 主题一致性30% + 上下文连贯性30% + 语义边界25% | 技术文档 |
 
 ### 使用示例
 
@@ -671,8 +743,16 @@ RAG Flow 的分块引擎内置了质量评分功能，用于评估每个分块�
 # 使用默认质量评估策略（aviation）
 python src/scripts/test_scripts/test_chunking_complete.py -t "测试文本"
 
-# 使用general质量评估策略
+# 使用general质量评估策略（通用文档）
 python src/scripts/test_scripts/test_chunking_complete.py -t "测试文本" --quality-strategy general
+
+# 使用technical质量评估策略（技术文档）
+python src/scripts/test_scripts/test_chunking_complete.py -t "测试文本" --quality-strategy technical
+
+# 对比不同策略的评分效果
+python src/scripts/test_scripts/test_chunking_complete.py -t "技术文档示例" --quality-strategy aviation
+python src/scripts/test_scripts/test_chunking_complete.py -t "技术文档示例" --quality-strategy technical
+python src/scripts/test_scripts/test_chunking_complete.py -t "技术文档示例" --quality-strategy general
 
 # 禁用质量评分功能
 python src/scripts/test_scripts/test_chunking_complete.py -t "测试文本" --disable-quality-assessment
@@ -681,8 +761,34 @@ python src/scripts/test_scripts/test_chunking_complete.py -t "测试文本" --di
 python src/scripts/test_scripts/test_chunking_complete.py -t "测试文本" --validate
 ```
 
+### 🎯 策略选择建议
+
+- **航空文档**：使用 `aviation` 策略，专门优化航空术语和安全信息
+- **技术文档**：使用 `technical` 策略，注重逻辑连贯性和主题一致性
+- **日常文档**：使用 `general` 策略，平衡各个评估维度
+- **学术论文**：使用 `semantic` 策略，强调语义完整性
+- **混合文档**：使用 `basic` 策略，提供基础的通用评估
+
 ---
 
-**版本**: v1.0.0  
-**作者**: Sniperz  
-**更新日期**: 2025-06-19
+## 更新日志
+
+### v2.0.0 (2024-01-15)
+- ✨ **新增**: 实现general和technical策略别名映射
+- 🚀 **优化**: 完善BaseQualityAssessment核心方法，支持真实的动态质量评分
+- 🔧 **修复**: 解决简化模式下固定返回0.8评分的问题
+- 📝 **更新**: 移除test_chunking.py，统一使用test_chunking_complete.py
+- 🎯 **增强**: 质量评估策略现在支持7种选择：aviation, basic, semantic, length_uniformity, content_completeness, general, technical
+- 💡 **改进**: 策略别名映射提供更针对性的文档类型评估
+
+### v1.0.0 (2025-06-19)
+- 🎉 初始版本发布
+- 📦 支持多种分块策略
+- 🔍 基础质量评估功能
+- 📊 性能测试和策略对比
+
+---
+
+**版本**: v2.0.0
+**作者**: Sniperz
+**更新日期**: 2024-01-15

@@ -6,10 +6,18 @@
 版本: v1.0.0
 """
 
-import logging
 from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass
 from datetime import datetime
+
+# 导入统一日志管理器
+try:
+    from src.utils.logger import SZ_LoggerManager
+    logger = SZ_LoggerManager.setup_logger(__name__)
+except ImportError:
+    # 回退到标准logging
+    import logging
+    logger = logging.getLogger(__name__)
 
 from .chunk_validator import ChunkValidator, ValidationResult, ValidationLevel
 from ..chunking.chunking_engine import TextChunk
@@ -53,7 +61,7 @@ class QualityController:
                 - generate_detailed_report (bool): 是否生成详细报告，默认True
         """
         self.config = config or {}
-        self.logger = logging.getLogger(__name__)
+        self.logger = logger
         
         # 配置参数
         self.validation_level = self.config.get('validation_level', 'normal')

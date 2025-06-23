@@ -1,0 +1,227 @@
+# 分块器统一配置文件
+# 用于管理所有分块策略的默认配置
+# 创建日期: 2024-01-15
+# 作者: Sniperz
+# 版本: v1.0.0
+
+# 全局分块配置
+global:
+  # 默认分块策略
+  default_strategy: "recursive"
+  
+  # 通用分块参数
+  chunk_size: 1000
+  chunk_overlap: 200
+  min_chunk_size: 100
+  max_chunk_size: 2000
+  preserve_context: true
+  
+  # 质量控制
+  enable_quality_assessment: true
+  quality_strategy: "aviation"
+
+# 递归字符分块器配置
+recursive:
+  # 基础参数
+  chunk_size: 1000
+  chunk_overlap: 200
+  
+  # 分隔符配置
+  is_separator_regex: false
+  keep_separator: true
+  add_start_index: false
+  strip_whitespace: true
+  
+  # 默认分隔符列表（按优先级排序）
+  separators:
+    # 段落分隔符
+    - "\n\n"
+    - "\n\n\n"
+    
+    # 中文段落标记
+    - "\n第"
+    - "\n章"
+    - "\n节"
+    - "\n条"
+    
+    # 英文段落标记
+    - "\nChapter"
+    - "\nSection"
+    - "\nArticle"
+    
+    # 列表和编号
+    - "\n\n•"
+    - "\n\n-"
+    - "\n\n*"
+    - "\n\n1."
+    - "\n\n2."
+    - "\n\n3."
+    
+    # 单行分隔符
+    - "\n"
+    
+    # 句子分隔符
+    - "。"
+    - "！"
+    - "？"
+    - "."
+    - "!"
+    - "?"
+    
+    # 子句分隔符
+    - "；"
+    - ";"
+    - "，"
+    - ","
+    
+    # 词语分隔符
+    - " "
+    - "\t"
+    
+    # 中文标点
+    - "、"
+    - "："
+    - ":"
+    
+    # 零宽字符（用于无明显分词边界的语言）
+    - "\u200b"  # 零宽空格
+    - "\uff0c"  # 全角逗号
+    - "\u3001"  # 中文顿号
+    - "\uff0e"  # 全角句号
+    - "\u3002"  # 中文句号
+    
+    # 最后的回退选项
+    - ""
+
+# 语义分块器配置
+semantic:
+  # 目标参数
+  target_chunk_size: 800
+  min_chunk_size: 200
+  max_chunk_size: 1500
+  
+  # 语义参数
+  similarity_threshold: 0.7
+  sentence_overlap: 1
+  
+  # 语义关键词（用于主题识别）
+  topic_keywords:
+    aviation:
+      - "飞行"
+      - "航空"
+      - "机场"
+      - "航班"
+      - "飞机"
+    technical:
+      - "系统"
+      - "设备"
+      - "技术"
+      - "规范"
+      - "标准"
+
+# 结构分块器配置
+structure:
+  # 结构保持
+  respect_page_breaks: true
+  merge_short_sections: true
+  min_section_size: 300
+  
+  # 格式保持
+  preserve_tables: true
+  preserve_lists: true
+  preserve_headers: true
+  
+  # 标题层次
+  header_levels:
+    - "h1"
+    - "h2"
+    - "h3"
+    - "h4"
+    - "h5"
+    - "h6"
+
+# 航空专用分块策略配置
+aviation:
+  # 继承递归分块器配置
+  inherit_from: "recursive"
+  
+  # 航空特定配置
+  chunk_size: 1200
+  chunk_overlap: 150
+  
+  # 航空专用分隔符
+  aviation_separators:
+    - "\n第"
+    - "\n章"
+    - "\n节"
+    - "\n条"
+    - "\n款"
+    - "\n项"
+    - "ICAO"
+    - "IATA"
+    - "FAA"
+    - "CAAC"
+  
+  # 航空文档类型适配
+  document_types:
+    manual:
+      chunk_size: 1500
+      preserve_procedures: true
+    regulation:
+      chunk_size: 800
+      strict_structure: true
+    checklist:
+      chunk_size: 500
+      preserve_order: true
+
+# 预设配置模板
+presets:
+  # 快速配置
+  quick:
+    strategy: "recursive"
+    chunk_size: 500
+    chunk_overlap: 50
+  
+  # 标准配置
+  standard:
+    strategy: "recursive"
+    chunk_size: 1000
+    chunk_overlap: 200
+  
+  # 高质量配置
+  high_quality:
+    strategy: "semantic"
+    target_chunk_size: 800
+    similarity_threshold: 0.8
+  
+  # 航空专用配置
+  aviation_standard:
+    strategy: "aviation"
+    chunk_size: 1200
+    chunk_overlap: 150
+    enable_quality_assessment: true
+
+# 环境变量映射
+environment_overrides:
+  CHUNKING_DEFAULT_STRATEGY: "global.default_strategy"
+  CHUNKING_CHUNK_SIZE: "global.chunk_size"
+  CHUNKING_CHUNK_OVERLAP: "global.chunk_overlap"
+  CHUNKING_ENABLE_QUALITY: "global.enable_quality_assessment"
+  CHUNKING_QUALITY_STRATEGY: "global.quality_strategy"
+
+# 配置验证规则
+validation:
+  chunk_size:
+    min: 50
+    max: 5000
+    type: "integer"
+  
+  chunk_overlap:
+    min: 0
+    max_ratio: 0.5  # 不能超过chunk_size的50%
+    type: "integer"
+  
+  similarity_threshold:
+    min: 0.0
+    max: 1.0
+    type: "float"

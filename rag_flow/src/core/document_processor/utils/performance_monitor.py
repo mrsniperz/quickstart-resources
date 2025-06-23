@@ -13,8 +13,16 @@ from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, asdict
 from collections import defaultdict, deque
 import json
-import logging
 from pathlib import Path
+
+# 导入统一日志管理器
+try:
+    from src.utils.logger import SZ_LoggerManager
+    logger = SZ_LoggerManager.setup_logger(__name__)
+except ImportError:
+    # 回退到标准logging
+    import logging
+    logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -46,7 +54,7 @@ class PerformanceMonitor:
         Args:
             max_history (int): 最大历史记录数量
         """
-        self.logger = logging.getLogger(__name__)
+        self.logger = logger
         self.max_history = max_history
         
         # 指标存储

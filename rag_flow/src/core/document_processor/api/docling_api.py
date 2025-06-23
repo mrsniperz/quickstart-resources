@@ -8,11 +8,19 @@
 
 import os
 import tempfile
-import logging
 from pathlib import Path
 from typing import Dict, Any, Optional
 import json
 import time
+
+# 导入统一日志管理器
+try:
+    from src.utils.logger import SZ_LoggerManager
+    logger = SZ_LoggerManager.setup_logger(__name__)
+except ImportError:
+    # 回退到标准logging
+    import logging
+    logger = logging.getLogger(__name__)
 
 try:
     from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks, Query

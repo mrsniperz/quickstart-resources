@@ -6,31 +6,110 @@
 版本: v1.0.0
 """
 
-from .parsers import *
-from .chunking import *
-from .extractors import *
-from .validators import *
+# 导入统一日志管理器
+try:
+    from src.utils.logger import SZ_LoggerManager
+    logger = SZ_LoggerManager.setup_logger(__name__)
+except ImportError:
+    # 回退到标准logging
+    import logging
+    logger = logging.getLogger(__name__)
 
-__all__ = [
-    # 文档解析器
-    'PDFParser',
-    'WordParser', 
-    'ExcelParser',
-    'PowerPointParser',
-    'DocumentProcessor',
-    
-    # 分块策略
-    'ChunkingEngine',
-    'AviationChunkingStrategy',
-    'SemanticChunker',
-    'StructureChunker',
-    
-    # 内容提取器
-    'MetadataExtractor',
-    'TableExtractor',
-    'ImageExtractor',
-    
-    # 质量控制
-    'ChunkValidator',
-    'QualityController',
-]
+# 动态构建__all__列表
+__all__ = []
+
+# 尝试导入分块模块（通常不依赖外部库）
+try:
+    from .chunking import *
+    CHUNKING_AVAILABLE = True
+    logger.info("分块模块导入成功")
+    __all__.extend([
+        'ChunkingEngine',
+        'AviationChunkingStrategy',
+        'SemanticChunker',
+        'StructureChunker',
+    ])
+except ImportError as e:
+    CHUNKING_AVAILABLE = False
+    logger.warning(f"分块模块导入失败: {e}")
+except Exception as e:
+    CHUNKING_AVAILABLE = False
+    logger.warning(f"分块模块导入异常: {e}")
+
+# 尝试导入解析器模块（可能依赖外部库）
+try:
+    from .parsers import *
+    PARSERS_AVAILABLE = True
+    logger.info("解析器模块导入成功")
+    __all__.extend([
+        'PDFParser',
+        'WordParser',
+        'ExcelParser',
+        'PowerPointParser',
+        'DocumentProcessor',
+    ])
+except ImportError as e:
+    PARSERS_AVAILABLE = False
+    logger.warning(f"解析器模块导入失败，部分文档格式将不支持: {e}")
+except Exception as e:
+    PARSERS_AVAILABLE = False
+    logger.warning(f"解析器模块导入异常: {e}")
+
+# 尝试导入提取器模块
+try:
+    from .extractors import *
+    EXTRACTORS_AVAILABLE = True
+    logger.info("提取器模块导入成功")
+    __all__.extend([
+        'MetadataExtractor',
+        'TableExtractor',
+        'ImageExtractor',
+    ])
+except ImportError as e:
+    EXTRACTORS_AVAILABLE = False
+    logger.warning(f"提取器模块导入失败: {e}")
+except Exception as e:
+    EXTRACTORS_AVAILABLE = False
+    logger.warning(f"提取器模块导入异常: {e}")
+
+# 尝试导入验证器模块
+try:
+    from .validators import *
+    VALIDATORS_AVAILABLE = True
+    logger.info("验证器模块导入成功")
+    __all__.extend([
+        'ChunkValidator',
+        'QualityController',
+    ])
+except ImportError as e:
+    VALIDATORS_AVAILABLE = False
+    logger.warning(f"验证器模块导入失败: {e}")
+except Exception as e:
+    VALIDATORS_AVAILABLE = False
+    logger.warning(f"验证器模块导入异常: {e}")
+
+# 提供可用性检查函数
+def is_chunking_available() -> bool:
+    """检查分块模块是否可用"""
+    return CHUNKING_AVAILABLE
+
+def is_parsers_available() -> bool:
+    """检查解析器模块是否可用"""
+    return PARSERS_AVAILABLE
+
+def is_extractors_available() -> bool:
+    """检查提取器模块是否可用"""
+    return EXTRACTORS_AVAILABLE
+
+def is_validators_available() -> bool:
+    """检查验证器模块是否可用"""
+    return VALIDATORS_AVAILABLE
+
+def get_available_modules() -> dict:
+    """获取可用模块信息"""
+    return {
+        'chunking': CHUNKING_AVAILABLE,
+        'parsers': PARSERS_AVAILABLE,
+        'extractors': EXTRACTORS_AVAILABLE,
+        'validators': VALIDATORS_AVAILABLE
+    }

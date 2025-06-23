@@ -6,10 +6,18 @@
 版本: v1.0.0
 """
 
-import logging
 from typing import Dict, List, Optional, Any, Tuple
 import re
 from dataclasses import dataclass
+
+# 导入统一日志管理器
+try:
+    from src.utils.logger import SZ_LoggerManager
+    logger = SZ_LoggerManager.setup_logger(__name__)
+except ImportError:
+    # 回退到标准logging
+    import logging
+    logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -68,7 +76,7 @@ class TableExtractor:
                 - min_table_size (tuple): 最小表格尺寸(rows, cols)，默认(2, 2)
         """
         self.config = config or {}
-        self.logger = logging.getLogger(__name__)
+        self.logger = logger
         
         # 配置参数
         self.auto_detect_header = self.config.get('auto_detect_header', True)

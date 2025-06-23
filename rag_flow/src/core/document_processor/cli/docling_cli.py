@@ -10,7 +10,6 @@
 import argparse
 import sys
 import json
-import logging
 from pathlib import Path
 from typing import List, Optional
 
@@ -23,37 +22,39 @@ from utils.batch_processor import BatchProcessor, ConsoleProgressCallback
 from config.config_manager import get_config_manager
 from utils.performance_monitor import get_performance_monitor
 
-
-def setup_logging(level: str = 'INFO'):
-    """设置日志"""
-    logging.basicConfig(
-        level=getattr(logging, level.upper()),
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
+# 导入统一日志管理器
+try:
+    from src.utils.logger import SZ_LoggerManager
+    logger = SZ_LoggerManager.setup_logger(__name__, "docling_cli.log")
+except ImportError:
+    # 回退到标准logging
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
 
 
 def cmd_parse_single(args):
     """解析单个文件"""
     if not DOCLING_AVAILABLE:
-        print("错误: Docling库未安装，请运行: pip install docling")
+        logger.error("Docling库未安装，请运行: pip install docling")
         return 1
-    
+
     try:
         # 初始化解析器
         config = {}
         if args.config:
             config_manager = get_config_manager()
             config = config_manager.get_docling_config()
-        
+
         parser = DoclingParser(config)
-        
+
         # 检查文件格式支持
         if not parser.is_format_supported(args.input):
-            print(f"错误: 不支持的文件格式: {Path(args.input).suffix}")
+            logger.error(f"不支持的文件格式: {Path(args.input).suffix}")
             return 1
-        
-        print(f"正在处理文件: {args.input}")
-        
+
+        logger.info(f"正在处理文件: {args.input}")
+
         # 解析文件
         result = parser.parse(args.input)
         
@@ -61,7 +62,7 @@ def cmd_parse_single(args):
         if args.output:
             output_path = Path(args.output)
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            
+
             if args.format == 'markdown':
                 with open(output_path, 'w', encoding='utf-8') as f:
                     f.write(result.text_content)
@@ -74,8 +75,8 @@ def cmd_parse_single(args):
                 }
                 with open(output_path, 'w', encoding='utf-8') as f:
                     json.dump(data, f, indent=2, ensure_ascii=False)
-            
-            print(f"结果已保存到: {output_path}")
+
+            logger.info(f"结果已保存到: {output_path}")
         else:
             # 输出到控制台
             if args.format == 'markdown':
@@ -89,7 +90,7 @@ def cmd_parse_single(args):
                     'structure_info': result.structure_info
                 }
                 print(json.dumps(data, indent=2, ensure_ascii=False))
-        
+
         # 显示统计信息
         if args.stats:
             print(f"\n=== 统计信息 ===")
@@ -98,11 +99,11 @@ def cmd_parse_single(args):
             print(f"表格数量: {len(result.structured_data.get('tables', []))}")
             print(f"图片数量: {len(result.structured_data.get('images', []))}")
             print(f"标题数量: {len(result.structured_data.get('headings', []))}")
-        
+
         return 0
-        
+
     except Exception as e:
-        print(f"错误: {e}")
+        logger.error(f"文件解析失败: {e}")
         return 1
 
 
@@ -164,59 +165,63 @@ def cmd_batch_process(args):
             
             with open(args.report, 'w', encoding='utf-8') as f:
                 json.dump(report_data, f, indent=2, ensure_ascii=False)
-            
-            print(f"处理报告已保存到: {args.report}")
-        
+
+            logger.info(f"处理报告已保存到: {args.report}")
+
         return 0 if result.failed_files == 0 else 1
-        
+
     except Exception as e:
-        print(f"错误: {e}")
+        logger.error(f"批量处理失败: {e}")
         return 1
 
 
 def cmd_check_dependencies(args):
     """检查依赖"""
-    print("检查Docling依赖...")
-    
+    logger.info("检查Docling依赖...")
+
     if DOCLING_AVAILABLE:
         dependencies = DoclingParser.check_dependencies()
-        
+
         print("依赖状态:")
         for dep, available in dependencies.items():
             status = "✓" if available else "✗"
             print(f"  {status} {dep}")
-        
+
         if all(dependencies.values()):
             print("\n✓ 所有依赖都可用")
+            logger.info("所有依赖都可用")
             return 0
         else:
             print("\n⚠️  部分依赖缺失")
+            logger.warning("部分依赖缺失")
             return 1
     else:
         print("✗ Docling库未安装")
         print("请运行: pip install docling")
+        logger.error("Docling库未安装")
         return 1
 
 
 def cmd_show_formats(args):
     """显示支持的格式"""
     if not DOCLING_AVAILABLE:
-        print("错误: Docling库未安装")
+        logger.error("Docling库未安装")
         return 1
-    
+
     try:
         parser = DoclingParser()
         formats = parser.get_supported_formats()
-        
+
         print("支持的文件格式:")
         for fmt in sorted(formats):
             print(f"  {fmt}")
-        
+
         print(f"\n总计: {len(formats)} 种格式")
+        logger.info(f"显示了 {len(formats)} 种支持的文件格式")
         return 0
-        
+
     except Exception as e:
-        print(f"错误: {e}")
+        logger.error(f"获取支持格式失败: {e}")
         return 1
 
 
@@ -225,14 +230,14 @@ def cmd_show_stats(args):
     try:
         monitor = get_performance_monitor()
         stats = monitor.get_current_stats()
-        
+
         print("性能统计信息:")
         print(f"  总处理文件数: {stats.get('total_processed', 0)}")
         print(f"  成功处理: {stats.get('total_success', 0)}")
         print(f"  处理失败: {stats.get('total_failed', 0)}")
         print(f"  成功率: {stats.get('success_rate', 0):.2%}")
         print(f"  平均处理时间: {stats.get('average_processing_time', 0):.2f}秒")
-        
+
         if args.detailed:
             print("\n解析器统计:")
             for parser_type, parser_stats in stats.get('parser_stats', {}).items():
@@ -240,11 +245,12 @@ def cmd_show_stats(args):
                 print(f"    处理数量: {parser_stats.get('count', 0)}")
                 print(f"    成功率: {parser_stats.get('success_rate', 0):.2%}")
                 print(f"    平均时间: {parser_stats.get('average_time', 0):.2f}秒")
-        
+
+        logger.info("显示性能统计信息完成")
         return 0
-        
+
     except Exception as e:
-        print(f"错误: {e}")
+        logger.error(f"获取性能统计失败: {e}")
         return 1
 
 
@@ -315,10 +321,17 @@ def main():
     
     # 解析参数
     args = parser.parse_args()
-    
-    # 设置日志
-    setup_logging(args.log_level)
-    
+
+    # 设置日志级别
+    try:
+        from src.utils.logger import SZ_LoggerManager
+        import logging
+        level = getattr(logging, args.log_level.upper())
+        SZ_LoggerManager.set_log_level(__name__, level)
+        logger.info(f"日志级别设置为: {args.log_level}")
+    except Exception as e:
+        logger.warning(f"设置日志级别失败: {e}")
+
     # 执行命令
     if hasattr(args, 'func'):
         return args.func(args)

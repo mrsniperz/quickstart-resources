@@ -6,12 +6,20 @@
 版本: v1.0.0
 """
 
-import logging
 from typing import Dict, List, Optional, Any, Tuple
 import base64
 import hashlib
 from pathlib import Path
 from dataclasses import dataclass
+
+# 导入统一日志管理器
+try:
+    from src.utils.logger import SZ_LoggerManager
+    logger = SZ_LoggerManager.setup_logger(__name__)
+except ImportError:
+    # 回退到标准logging
+    import logging
+    logger = logging.getLogger(__name__)
 import io
 
 
@@ -68,7 +76,7 @@ class ImageExtractor:
                 - supported_formats (list): 支持的图像格式，默认['png', 'jpg', 'jpeg', 'gif', 'bmp']
         """
         self.config = config or {}
-        self.logger = logging.getLogger(__name__)
+        self.logger = logger
         
         # 配置参数
         self.extract_image_data = self.config.get('extract_image_data', True)

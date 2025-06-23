@@ -12,6 +12,7 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 
 from .chunking_engine import ChunkingStrategy, TextChunk, ChunkMetadata, ChunkType
+from ..config.config_manager import get_config_manager
 
 
 class AviationChunkingStrategy(ChunkingStrategy):
@@ -24,12 +25,34 @@ class AviationChunkingStrategy(ChunkingStrategy):
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         """
         初始化航空分块策略
-        
+
         Args:
             config (dict, optional): 配置参数
         """
-        self.config = config or {}
-        self.logger = logging.getLogger(__name__)
+        # 导入统一日志管理器
+        try:
+            from src.utils.logger import SZ_LoggerManager
+            self.logger = SZ_LoggerManager.setup_logger(__name__)
+        except ImportError:
+            # 回退到标准logging
+            import logging
+            self.logger = logging.getLogger(__name__)
+
+        # 获取配置管理器和默认配置
+        try:
+            config_manager = get_config_manager()
+            default_config = config_manager.get_chunking_config('aviation')
+            # 如果没有aviation配置，回退到recursive配置
+            if not default_config or default_config == config_manager.get_chunking_config('global'):
+                default_config = config_manager.get_chunking_config('recursive')
+        except Exception as e:
+            self.logger.warning(f"无法加载配置文件，使用硬编码默认配置: {e}")
+            default_config = self._get_fallback_config()
+
+        # 合并用户配置和默认配置
+        self.config = default_config.copy()
+        if config:
+            self.config.update(config)
         
         # 航空文档常见的结构标记
         self.structure_patterns = {
@@ -60,6 +83,31 @@ class AviationChunkingStrategy(ChunkingStrategy):
     def get_strategy_name(self) -> str:
         """获取策略名称"""
         return "aviation_base"
+
+    def _get_fallback_config(self) -> Dict[str, Any]:
+        """
+        获取回退配置（当配置文件不可用时使用）
+
+        Returns:
+            dict: 回退配置
+        """
+        return {
+            'chunk_size': 1200,
+            'chunk_overlap': 150,
+            'is_separator_regex': False,
+            'keep_separator': True,
+            'add_start_index': False,
+            'strip_whitespace': True,
+            'separators': [
+                "\n\n", "\n\n\n",
+                "\n第", "\n章", "\n节", "\n条", "\n款", "\n项",
+                "\nChapter", "\nSection", "\nArticle",
+                "\n\n•", "\n\n-", "\n\n*", "\n\n1.", "\n\n2.", "\n\n3.",
+                "\n", "。", "！", "？", ".", "!", "?",
+                "；", ";", "，", ",", " ", "\t",
+                "、", "：", ":", ""
+            ]
+        }
     
     def chunk_text(self, text: str, metadata: Dict[str, Any]) -> List[TextChunk]:
         """

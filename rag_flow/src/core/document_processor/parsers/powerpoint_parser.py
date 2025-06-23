@@ -6,13 +6,21 @@
 版本: v1.0.0
 """
 
-import logging
 from typing import Dict, List, Optional, Any
 from pathlib import Path
 from dataclasses import dataclass
 from pptx import Presentation
 from pptx.slide import Slide
 from pptx.shapes.base import BaseShape
+
+# 导入统一日志管理器
+try:
+    from src.utils.logger import SZ_LoggerManager
+    logger = SZ_LoggerManager.setup_logger(__name__)
+except ImportError:
+    # 回退到标准logging
+    import logging
+    logger = logging.getLogger(__name__)
 
 from ..extractors.metadata_extractor import MetadataExtractor
 
@@ -50,7 +58,7 @@ class PowerPointParser:
                 - preserve_slide_structure (bool): 是否保持幻灯片结构，默认True
         """
         self.config = config or {}
-        self.logger = logging.getLogger(__name__)
+        self.logger = logger
         
         # 初始化提取器
         self.metadata_extractor = MetadataExtractor()

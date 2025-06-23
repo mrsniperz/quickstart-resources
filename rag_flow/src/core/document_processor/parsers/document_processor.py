@@ -6,11 +6,19 @@
 版本: v1.0.0
 """
 
-import logging
 from typing import Dict, List, Optional, Any, Union
 from pathlib import Path
 from dataclasses import dataclass
 from enum import Enum
+
+# 导入统一日志管理器
+try:
+    from src.utils.logger import SZ_LoggerManager
+    logger = SZ_LoggerManager.setup_logger(__name__)
+except ImportError:
+    # 回退到标准logging
+    import logging
+    logger = logging.getLogger(__name__)
 
 # 尝试导入性能监控和配置管理（可选）
 try:
@@ -78,7 +86,7 @@ class DocumentProcessor:
                 - powerpoint_config (dict): PowerPoint解析器配置
         """
         self.config = config or {}
-        self.logger = logging.getLogger(__name__)
+        self.logger = logger
 
         # 初始化性能监控（如果可用）
         self.performance_monitor = None

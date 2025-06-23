@@ -6,12 +6,21 @@
 版本: v1.0.0
 """
 
-import logging
 import re
 from typing import Dict, List, Optional, Any, Union
 from datetime import datetime
 
+# 导入统一日志管理器
+try:
+    from src.utils.logger import SZ_LoggerManager
+    logger = SZ_LoggerManager.setup_logger(__name__)
+except ImportError:
+    # 回退到标准logging
+    import logging
+    logger = logging.getLogger(__name__)
+
 from .chunking_engine import ChunkingStrategy, TextChunk, ChunkMetadata, ChunkType
+from ..config.config_manager import get_config_manager
 
 
 class RecursiveCharacterChunker(ChunkingStrategy):
@@ -29,20 +38,32 @@ class RecursiveCharacterChunker(ChunkingStrategy):
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         """
         初始化递归字符分块器
-        
+
         Args:
             config (dict, optional): 配置参数
-                - chunk_size (int): 目标分块大小，默认1000
-                - chunk_overlap (int): 分块重叠大小，默认200
-                - separators (list): 分隔符列表，默认使用内置分隔符
-                - is_separator_regex (bool): 分隔符是否为正则表达式，默认False
-                - keep_separator (bool): 是否保留分隔符，默认True
-                - add_start_index (bool): 是否添加起始索引，默认False
-                - strip_whitespace (bool): 是否去除空白字符，默认True
+                - chunk_size (int): 目标分块大小，默认从配置文件读取
+                - chunk_overlap (int): 分块重叠大小，默认从配置文件读取
+                - separators (list): 分隔符列表，默认从配置文件读取
+                - is_separator_regex (bool): 分隔符是否为正则表达式，默认从配置文件读取
+                - keep_separator (bool): 是否保留分隔符，默认从配置文件读取
+                - add_start_index (bool): 是否添加起始索引，默认从配置文件读取
+                - strip_whitespace (bool): 是否去除空白字符，默认从配置文件读取
         """
-        self.config = config or {}
-        self.logger = logging.getLogger(__name__)
-        
+        self.logger = logger
+
+        # 获取配置管理器和默认配置
+        try:
+            config_manager = get_config_manager()
+            default_config = config_manager.get_chunking_config('recursive')
+        except Exception as e:
+            self.logger.warning(f"无法加载配置文件，使用硬编码默认配置: {e}")
+            default_config = self._get_fallback_config()
+
+        # 合并用户配置和默认配置
+        self.config = default_config.copy()
+        if config:
+            self.config.update(config)
+
         # 配置参数
         self.chunk_size = self.config.get('chunk_size', 1000)
         self.chunk_overlap = self.config.get('chunk_overlap', 200)
@@ -50,21 +71,41 @@ class RecursiveCharacterChunker(ChunkingStrategy):
         self.keep_separator = self.config.get('keep_separator', True)
         self.add_start_index = self.config.get('add_start_index', False)
         self.strip_whitespace = self.config.get('strip_whitespace', True)
-        
-        # 默认分隔符列表（按优先级排序）
+
+        # 分隔符列表（优先使用配置文件，然后是用户配置，最后是硬编码默认值）
         self.separators = self.config.get('separators', self._get_default_separators())
-        
+
         # 验证配置
         self._validate_config()
     
     def get_strategy_name(self) -> str:
         """获取策略名称"""
         return "recursive"
+
+    def _get_fallback_config(self) -> Dict[str, Any]:
+        """
+        获取回退配置（当配置文件不可用时使用）
+
+        Returns:
+            dict: 回退配置
+        """
+        return {
+            'chunk_size': 1000,
+            'chunk_overlap': 200,
+            'is_separator_regex': False,
+            'keep_separator': True,
+            'add_start_index': False,
+            'strip_whitespace': True,
+            'separators': self._get_default_separators()
+        }
     
     def _get_default_separators(self) -> List[str]:
         """
-        获取默认分隔符列表
-        
+        获取默认分隔符列表（回退方案）
+
+        注意：此方法主要用作配置文件不可用时的回退方案。
+        正常情况下应该从配置文件中读取分隔符列表。
+
         Returns:
             list: 分隔符列表，按优先级从高到低排序
         """

@@ -9,25 +9,37 @@
 import os
 import yaml
 import json
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from pathlib import Path
-import logging
+
+# 导入统一日志管理器
+try:
+    from src.utils.logger import SZ_LoggerManager
+    logger = SZ_LoggerManager.setup_logger(__name__)
+except ImportError:
+    # 回退到标准logging
+    import logging
+    logger = logging.getLogger(__name__)
 
 
 class ConfigManager:
     """配置管理器"""
     
-    def __init__(self, config_path: Optional[str] = None):
+    def __init__(self, config_path: Optional[str] = None, chunking_config_path: Optional[str] = None):
         """
         初始化配置管理器
-        
+
         Args:
-            config_path (str, optional): 配置文件路径
+            config_path (str, optional): 主配置文件路径
+            chunking_config_path (str, optional): 分块配置文件路径
         """
-        self.logger = logging.getLogger(__name__)
+        self.logger = logger
         self.config_path = config_path or self._get_default_config_path()
+        self.chunking_config_path = chunking_config_path or self._get_chunking_config_path()
         self.config = {}
+        self.chunking_config = {}
         self._load_config()
+        self._load_chunking_config()
     
     def _get_default_config_path(self) -> str:
         """获取默认配置文件路径"""
@@ -38,22 +50,39 @@ class ConfigManager:
             './docling_config.yaml',
             str(Path(__file__).parent / 'docling_config.yaml'),
         ]
-        
+
         for path in possible_paths:
             if path and Path(path).exists():
                 return path
-        
+
         # 如果都不存在，返回默认路径
         return './config/docling_config.yaml'
+
+    def _get_chunking_config_path(self) -> str:
+        """获取chunking配置文件路径"""
+        # 尝试多个可能的配置文件位置
+        possible_paths = [
+            os.environ.get('CHUNKING_CONFIG_PATH'),
+            './config/chunking_config.yaml',
+            './chunking_config.yaml',
+            str(Path(__file__).parent / 'chunking_config.yaml'),
+        ]
+
+        for path in possible_paths:
+            if path and Path(path).exists():
+                return path
+
+        # 如果都不存在，返回默认路径
+        return str(Path(__file__).parent / 'chunking_config.yaml')
     
     def _load_config(self):
-        """加载配置文件"""
+        """加载主配置文件"""
         try:
             if not Path(self.config_path).exists():
                 self.logger.warning(f"配置文件不存在: {self.config_path}，使用默认配置")
                 self.config = self._get_default_config()
                 return
-            
+
             with open(self.config_path, 'r', encoding='utf-8') as f:
                 if self.config_path.endswith('.yaml') or self.config_path.endswith('.yml'):
                     self.config = yaml.safe_load(f)
@@ -61,12 +90,34 @@ class ConfigManager:
                     self.config = json.load(f)
                 else:
                     raise ValueError(f"不支持的配置文件格式: {self.config_path}")
-            
+
             self.logger.info(f"配置文件加载成功: {self.config_path}")
-            
+
         except Exception as e:
             self.logger.error(f"配置文件加载失败: {e}")
             self.config = self._get_default_config()
+
+    def _load_chunking_config(self):
+        """加载分块配置文件"""
+        try:
+            if not Path(self.chunking_config_path).exists():
+                self.logger.warning(f"分块配置文件不存在: {self.chunking_config_path}，使用默认配置")
+                self.chunking_config = self._get_default_chunking_config()
+                return
+
+            with open(self.chunking_config_path, 'r', encoding='utf-8') as f:
+                if self.chunking_config_path.endswith('.yaml') or self.chunking_config_path.endswith('.yml'):
+                    self.chunking_config = yaml.safe_load(f)
+                elif self.chunking_config_path.endswith('.json'):
+                    self.chunking_config = json.load(f)
+                else:
+                    raise ValueError(f"不支持的配置文件格式: {self.chunking_config_path}")
+
+            self.logger.info(f"分块配置文件加载成功: {self.chunking_config_path}")
+
+        except Exception as e:
+            self.logger.error(f"分块配置文件加载失败: {e}")
+            self.chunking_config = self._get_default_chunking_config()
     
     def _get_default_config(self) -> Dict[str, Any]:
         """获取默认配置"""
@@ -126,6 +177,56 @@ class ConfigManager:
                     'backoff_factor': 2
                 },
                 'log_errors': True
+            }
+        }
+
+    def _get_default_chunking_config(self) -> Dict[str, Any]:
+        """获取默认分块配置"""
+        return {
+            'global': {
+                'default_strategy': 'recursive',
+                'chunk_size': 1000,
+                'chunk_overlap': 200,
+                'min_chunk_size': 100,
+                'max_chunk_size': 2000,
+                'preserve_context': True,
+                'enable_quality_assessment': True,
+                'quality_strategy': 'aviation'
+            },
+            'recursive': {
+                'chunk_size': 1000,
+                'chunk_overlap': 200,
+                'is_separator_regex': False,
+                'keep_separator': True,
+                'add_start_index': False,
+                'strip_whitespace': True,
+                'separators': [
+                    "\n\n", "\n\n\n",
+                    "\n第", "\n章", "\n节", "\n条",
+                    "\nChapter", "\nSection", "\nArticle",
+                    "\n\n•", "\n\n-", "\n\n*", "\n\n1.", "\n\n2.", "\n\n3.",
+                    "\n",
+                    "。", "！", "？", ".", "!", "?",
+                    "；", ";", "，", ",",
+                    " ", "\t",
+                    "、", "：", ":",
+                    "\u200b", "\uff0c", "\u3001", "\uff0e", "\u3002",
+                    ""
+                ]
+            },
+            'semantic': {
+                'target_chunk_size': 800,
+                'min_chunk_size': 200,
+                'max_chunk_size': 1500,
+                'similarity_threshold': 0.7,
+                'sentence_overlap': 1
+            },
+            'structure': {
+                'respect_page_breaks': True,
+                'merge_short_sections': True,
+                'min_section_size': 300,
+                'preserve_tables': True,
+                'preserve_lists': True
             }
         }
     
@@ -209,6 +310,56 @@ class ConfigManager:
             'excel_config': self.get('traditional_parsers.excel', {}),
             'powerpoint_config': self.get('traditional_parsers.powerpoint', {})
         }
+
+    def get_chunking_config(self, strategy: Optional[str] = None) -> Dict[str, Any]:
+        """
+        获取分块配置
+
+        Args:
+            strategy (str, optional): 分块策略名称，如果不指定则返回全局配置
+
+        Returns:
+            dict: 分块配置
+        """
+        if strategy:
+            # 获取特定策略的配置
+            strategy_config = self.chunking_config.get(strategy, {})
+            global_config = self.chunking_config.get('global', {})
+
+            # 合并全局配置和策略特定配置
+            merged_config = global_config.copy()
+            merged_config.update(strategy_config)
+
+            return merged_config
+        else:
+            # 返回完整的分块配置
+            return self.chunking_config.copy()
+
+    def get_chunking_separators(self, strategy: str = 'recursive') -> List[str]:
+        """
+        获取指定策略的分隔符列表
+
+        Args:
+            strategy (str): 分块策略名称
+
+        Returns:
+            list: 分隔符列表
+        """
+        strategy_config = self.chunking_config.get(strategy, {})
+        return strategy_config.get('separators', [])
+
+    def get_chunking_preset(self, preset_name: str) -> Dict[str, Any]:
+        """
+        获取预设配置
+
+        Args:
+            preset_name (str): 预设名称
+
+        Returns:
+            dict: 预设配置
+        """
+        presets = self.chunking_config.get('presets', {})
+        return presets.get(preset_name, {})
     
     def save_config(self, output_path: Optional[str] = None):
         """
@@ -237,6 +388,7 @@ class ConfigManager:
     def reload_config(self):
         """重新加载配置文件"""
         self._load_config()
+        self._load_chunking_config()
         self.logger.info("配置文件已重新加载")
     
     def validate_config(self) -> bool:

@@ -72,21 +72,8 @@ except Exception as e:
     EXTRACTORS_AVAILABLE = False
     logger.warning(f"提取器模块导入异常: {e}")
 
-# 尝试导入验证器模块
-try:
-    from .validators import *
-    VALIDATORS_AVAILABLE = True
-    logger.info("验证器模块导入成功")
-    __all__.extend([
-        'ChunkValidator',
-        'QualityController',
-    ])
-except ImportError as e:
-    VALIDATORS_AVAILABLE = False
-    logger.warning(f"验证器模块导入失败: {e}")
-except Exception as e:
-    VALIDATORS_AVAILABLE = False
-    logger.warning(f"验证器模块导入异常: {e}")
+# 验证器模块已移除
+VALIDATORS_AVAILABLE = False
 
 # 提供可用性检查函数
 def is_chunking_available() -> bool:
@@ -101,15 +88,12 @@ def is_extractors_available() -> bool:
     """检查提取器模块是否可用"""
     return EXTRACTORS_AVAILABLE
 
-def is_validators_available() -> bool:
-    """检查验证器模块是否可用"""
-    return VALIDATORS_AVAILABLE
+
 
 def get_available_modules() -> dict:
     """获取可用模块信息"""
     return {
         'chunking': CHUNKING_AVAILABLE,
         'parsers': PARSERS_AVAILABLE,
-        'extractors': EXTRACTORS_AVAILABLE,
-        'validators': VALIDATORS_AVAILABLE
+        'extractors': EXTRACTORS_AVAILABLE
     }

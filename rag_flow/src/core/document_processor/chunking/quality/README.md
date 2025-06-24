@@ -2,463 +2,524 @@
 
 ## 概述
 
-本模块提供了一个可扩展的分块质量评估架构，支持多种评估策略和运行时策略切换。该架构从原有的 `chunking_engine.py` 中提取了质量评估逻辑，实现了更好的模块化和可维护性。
+分块质量评估模块提供了一个轻量级的文本分块质量评估框架，专注于长度适当性和基本完整性检查。该模块采用简化的架构设计，提供高性能的质量评估能力，同时保持API的简洁性和易用性。
 
-## 文件结构
+## 核心功能
+
+- **长度适当性评估**: 检查分块长度是否在合理范围内
+- **基本完整性评估**: 检查分块是否有明显的截断或不完整
+- **预设配置管理**: 提供三种预设配置满足不同场景需求
+- **批量处理支持**: 支持高效的批量质量评估
+- **统计信息收集**: 提供详细的处理统计和性能指标
+
+## 模块架构
+
+### 文件结构
 
 ```
-rag_flow/src/core/document_processor/chunking/
-├── chunking_engine.py          # 精简后的主引擎 (722 行)
-└── quality/                    # 质量评估模块 (3,508 行)
-    ├── __init__.py             # 模块导出
-    ├── base.py                 # 抽象基类和数据结构
-    ├── manager.py              # 质量评估管理器
-    ├── utils.py                # 工具函数和配置助手
-    ├── README.md               # 详细文档
-    ├── test_quality_refactor.py # 测试文件
-    └── strategies/             # 评估策略实现
-        ├── __init__.py
-        ├── aviation_quality.py  # 航空质量评估
-        ├── semantic_quality.py  # 语义质量评估
-        ├── length_quality.py    # 长度均匀性评估
-        └── completeness_quality.py # 内容完整性评估
+rag_flow/src/core/document_processor/chunking/quality/
+├── __init__.py                 # 模块导出和接口定义
+├── base.py                     # 基础类、数据结构和评估策略
+├── manager.py                  # 质量评估管理器
+├── config_simplified.py       # 配置系统和预设管理
+└── README.md                   # 技术文档
 ```
 
-## 架构设计
+### 架构设计
 
-### 核心组件
+该模块采用分层架构设计，各组件职责明确：
 
-1. **QualityAssessmentStrategy (抽象基类)**
-   - 定义了质量评估策略的统一接口
-   - 提供基础的验证和回退机制
-   - 关键方法:
-     - `assess_quality()`: 评估分块质量
-     - `get_strategy_name()`: 获取策略名称
-     - `get_supported_dimensions()`: 获取支持的评估维度
-     - `validate_chunk()`: 验证分块是否有效
-     - `get_fallback_metrics()`: 获取回退评估结果
+```mermaid
+graph TD
+    A[QualityAssessmentManager] --> B[BaseQualityAssessment]
+    A --> C[SimplifiedQualityConfig]
+    B --> D[QualityMetrics]
+    C --> E[QualityPreset]
 
-2. **QualityAssessmentManager (管理器)**
-   - 负责策略注册、选择和执行
-   - 支持结果缓存和批量评估
-   - 提供统一的评估接口
-   - 关键方法:
-     - `register_strategy()`: 注册质量评估策略
-     - `unregister_strategy()`: 注销质量评估策略
-     - `assess_chunk_quality()`: 评估单个分块质量
-     - `assess_chunks_batch()`: 批量评估分块质量
-     - `get_available_strategies()`: 获取可用策略列表
-     - `set_default_strategy()`: 设置默认策略
+    F[用户调用] --> A
+    A --> G[质量评估结果]
+```
 
-3. **QualityMetrics (数据类)**
-   - 封装质量评估结果
-   - 包含总体评分、维度评分、置信度等信息
-   - 主要属性:
-     - `overall_score`: 总体质量评分（0-1）
-     - `dimension_scores`: 各维度评分字典
-     - `confidence`: 评估置信度（0-1）
-     - `details`: 详细评估信息
-     - `strategy_name`: 使用的评估策略名称
-     - `processing_time`: 评估处理时间（毫秒）
+### 组件依赖关系
 
-### 方法调用逻辑
+- **manager.py** 依赖 **base.py** 和 **config_simplified.py**
+- **base.py** 定义核心数据结构，被其他模块引用
+- **config_simplified.py** 独立管理配置逻辑
+- **__init__.py** 统一导出所有公共接口
 
-1. **初始化流程**:
-   ```
-   配置创建 → 管理器初始化 → 策略注册 → 设置默认策略
-   ```
+## 代码结构分析
 
-2. **评估流程**:
-   ```
-   分块输入 → 策略选择 → 缓存检查 → 执行评估 → 结果处理 → 返回评分
-   ```
+### __init__.py - 模块导出
 
-3. **批量评估流程**:
-   ```
-   分块列表 → 循环评估 → 结果聚合 → 返回评分列表
-   ```
-
-4. **策略注册流程**:
-   ```
-   创建策略实例 → 注册到管理器 → 可选设为默认
-   ```
-
-5. **缓存管理流程**:
-   ```
-   生成缓存键 → 检查缓存 → 缓存命中返回/未命中计算 → 更新缓存
-   ```
-
-### 评估策略
-
-#### 1. AviationQualityAssessment (航空质量评估)
-专门针对航空文档设计的评估策略，包括：
-- **航空特定性评估**: 航空术语密度、安全信息完整性、操作步骤连贯性
-- **语义完整性评估**: 句子完整性、主题连贯性、结束完整性
-- **信息密度评估**: 有效字符比例、关键词密度、技术数据密度
-- **结构质量评估**: 标题结构、列表结构、段落结构
-- **大小适当性评估**: 长度分布、最优区间匹配
-
-##### 方法逻辑详解：
-- **_calculate_aviation_specific_score**: 计算航空特定性评分
-  - 检测航空术语密度（如"发动机"、"液压系统"等术语出现频率）
-  - 评估安全信息完整性（检查警告、注意等安全关键词的完整性）
-  - 分析操作步骤的连贯性（检查是否有不完整的操作程序）
-  - 根据文档类型（维修手册、法规、技术标准等）应用不同权重
-
-- **_calculate_semantic_completeness_score**: 评估语义完整性
-  - 检查句子完整性（是否有完整的句子结构）
-  - 分析段落结构（开头、主体、结尾是否完整）
-  - 评估主题连贯性（主题是否集中且连贯）
-
-- **_calculate_information_density_score**: 计算信息密度
-  - 分析有效字符比例（非空白字符占比）
-  - 计算关键词密度（技术术语、指令词等）
-  - 评估技术数据密度（数值、单位、参数等）
-
-- **_calculate_structure_quality_score**: 评估结构质量
-  - 分析标题结构（标题格式、层级关系）
-  - 检查列表结构（项目符号、编号的一致性）
-  - 评估段落结构（段落划分合理性）
-
-- **_calculate_size_appropriateness_score**: 评估大小适当性
-  - 比较实际长度与目标长度的匹配度
-  - 根据最优长度区间计算评分
-  - 对过长或过短的分块应用惩罚机制
-
-#### 2. SemanticQualityAssessment (语义质量评估)
-专注于语义完整性和连贯性：
-- **语义边界评估**: 检查分块的开始和结束边界
-- **主题一致性评估**: 分析主题集中度和转换合理性
-- **上下文连贯性评估**: 评估与相邻分块的连贯性
-- **语义完整性评估**: 检查语义单元的完整性
-
-##### 方法逻辑详解：
-- **_calculate_semantic_boundary_score**: 评估语义边界质量
-  - 检查开始边界（章节标题、编号开始等明确标志）
-  - 检查结束边界（句号结尾、明确结束词等）
-  - 识别句子中间截断的情况并降低评分
-  - 根据边界清晰度调整评分
-
-- **_calculate_topic_consistency_score**: 评估主题一致性
-  - 识别文本中的主题关键词组（维修、操作、安全等）
-  - 计算主题集中度（主要主题的关键词占比）
-  - 分析主题转换的合理性（相邻句子的主题变化）
-  - 根据主题集中度和转换合理性调整评分
-
-- **_calculate_context_coherence_score**: 评估上下文连贯性
-  - 分析与前后分块的语义关联度
-  - 检查指代词（如"它"、"这些"等）的上下文依赖
-  - 评估句子间的连贯性和逻辑流畅度
-  - 根据连贯性指标调整评分
-
-- **_calculate_semantic_completeness_score**: 评估语义完整性
-  - 检查句子的语法完整性
-  - 分析语义单元的完整性（定义、描述、指令等）
-  - 识别明显的截断或不完整表达
-  - 根据完整性指标调整评分
-
-#### 3. LengthUniformityAssessment (长度均匀性评估)
-专注于分块长度的合理性：
-- **大小适当性评估**: 与目标长度的匹配度
-- **长度均匀性评估**: 整体长度分布的均匀性
-- **相对一致性评估**: 与相邻分块的长度一致性
-- **变异系数评估**: 长度变异的统计分析
-
-##### 方法逻辑详解：
-- **_calculate_size_appropriateness**: 评估大小适当性
-  - 定义最优长度区间（目标长度±容忍比例）
-  - 在最优区间内给予满分
-  - 根据与最优区间的距离计算评分
-  - 对过长或过短的分块应用惩罚机制
-
-- **_calculate_length_uniformity**: 评估长度均匀性
-  - 计算所有分块长度的标准差和平均值
-  - 分析长度的变异系数（标准差/平均值）
-  - 变异系数越小，均匀性评分越高
-  - 无上下文信息时基于目标长度评估
-
-- **_calculate_relative_consistency**: 评估相对一致性
-  - 比较当前分块与相邻分块的长度差异
-  - 计算长度比率并评估一致性
-  - 相邻分块长度相近时给予高分
-  - 长度差异过大时降低评分
-
-- **_calculate_variation_coefficient**: 评估变异系数
-  - 计算整体分块长度的变异系数
-  - 分析长度分布的稳定性
-  - 变异系数低时表示长度分布稳定
-  - 根据变异系数的阈值范围调整评分
-
-#### 4. ContentCompletenessAssessment (内容完整性评估)
-专注于内容的完整性：
-- **信息单元完整性**: 检查定义、指令、警告等信息单元
-- **逻辑结构完整性**: 检查枚举、因果关系、程序等逻辑结构
-- **引用完整性**: 检查图表、章节、页面等引用
-- **上下文依赖完整性**: 检查上下文依赖的满足情况
-
-##### 方法逻辑详解：
-- **_calculate_information_unit_completeness**: 评估信息单元完整性
-  - 识别文本中的信息单元类型（定义、指令、警告等）
-  - 检查每个信息单元的完整性
-  - 计算完整信息单元的比例
-  - 根据完整性比例调整评分
-
-- **_calculate_logical_structure_completeness**: 评估逻辑结构完整性
-  - 识别文本中的逻辑结构模式（枚举、因果关系、比较等）
-  - 检查每种结构的完整性
-  - 分析结构间的连贯性和完整性
-  - 根据结构完整性比例调整评分
-
-- **_calculate_reference_completeness**: 评估引用完整性
-  - 查找文本中的引用（图表、章节、页面等）
-  - 检查引用的完整性和有效性
-  - 分析引用与内容的关联度
-  - 根据引用完整性调整评分
-
-- **_calculate_context_dependency_completeness**: 评估上下文依赖完整性
-  - 识别依赖上下文的表达（代词、指示词等）
-  - 检查上下文依赖是否在当前分块中得到满足
-  - 分析分块的自包含程度
-  - 根据上下文依赖的满足情况调整评分
-
-#### 5. BaseQualityAssessment (基础质量评估)
-提供通用的质量评估功能，适用于大多数文档类型：
-- **基础方法**: 提供简化的评估逻辑，作为其他策略的基础
-- **默认实现**: 当特定策略不可用时作为回退机制
-- **简单评分**: 基于基本指标提供初步评分
-
-##### 基类方法说明：
-- **_calculate_semantic_completeness**: 提供语义完整性的基础评分（固定值0.7）
-- **_calculate_information_density**: 提供信息密度的基础评分（固定值0.6）
-- **_calculate_structure_quality**: 提供结构质量的基础评分（固定值0.7）
-- **_calculate_size_appropriateness**: 提供大小适当性的基础评分逻辑
-
-## 重构成果
-
-### 代码结构优化
-- **原始文件**: `chunking_engine.py` (超过 1000 行，复杂度高)
-- **重构后**: 
-  - `chunking_engine.py`: 722 行 (精简 28%+)
-  - `quality` 模块: 3,508 行 (新增独立模块)
-  - 总代码量: 4,230 行
-
-### 功能增强
-- **策略数量**: 从 1 个增加到 5 个
-- **配置灵活性**: 支持多种配置组合
-- **扩展性**: 新策略只需实现接口即可
-- **可测试性**: 每个策略可独立测试
-
-### 架构优势
-- **单一职责原则**: 分块引擎专注分块，质量评估专注评估
-- **开闭原则**: 对扩展开放，对修改封闭
-- **依赖倒置原则**: 依赖抽象而非具体实现
-- **策略模式**: 算法族封装，可互换使用
-- **性能优化**: 结果缓存、批量处理、懒加载、配置驱动
-
-## 使用方法
-
-### 基本使用
+该文件定义了模块的公共接口，导出所有核心类和函数：
 
 ```python
-from quality.manager import QualityAssessmentManager
-from quality.utils import create_aviation_config
-
-# 创建配置
-config = create_aviation_config()
-
-# 创建管理器
-manager = QualityAssessmentManager(config)
-
-# 评估单个分块
-result = manager.assess_chunk_quality(chunk, 'aviation')
-print(f"质量评分: {result.overall_score}")
-print(f"维度评分: {result.dimension_scores}")
-
-# 批量评估
-results = manager.assess_chunks_batch(chunks, 'aviation')
+from .base import QualityMetrics, QualityAssessmentStrategy, BaseQualityAssessment
+from .manager import QualityAssessmentManager
+from .config_simplified import SimplifiedQualityConfig, QualityPreset, get_default_config
 ```
 
-### 自定义配置
+**主要导出**：
+- `QualityAssessmentManager`: 主要的质量评估管理器
+- `QualityMetrics`: 质量评估结果数据结构
+- `SimplifiedQualityConfig`: 配置管理类
+- `QualityPreset`: 预设配置枚举
+
+### base.py - 基础类和数据结构
+
+#### 核心数据结构
+
+**QualityMetrics**: 质量评估结果的数据容器
+```python
+@dataclass
+class QualityMetrics:
+    overall_score: float          # 总体质量评分 (0-1)
+    dimension_scores: Dict[str, float]  # 各维度评分
+    confidence: float             # 评估置信度
+    details: Dict[str, Any]       # 详细信息
+    strategy_name: str            # 使用的策略名称
+    processing_time: float        # 处理时间(毫秒)
+```
+
+**QualityAssessmentStrategy**: 抽象基类
+- 定义质量评估策略的标准接口
+- 提供配置管理和日志记录功能
+- 子类需实现 `assess_quality()` 方法
+
+#### BaseQualityAssessment 实现
+
+核心评估策略类，实现两个主要评估维度：
+
+1. **长度适当性评估** (`_calculate_length_appropriateness`)
+2. **基本完整性评估** (`_calculate_basic_completeness`)
+
+### manager.py - 质量评估管理器
+
+#### QualityAssessmentManager 类
+
+主要的质量评估管理器，提供以下核心功能：
+
+**初始化方法**：
+```python
+def __init__(self, config_or_preset=None):
+    # 支持预设名称、配置字典或配置对象
+    # 自动初始化评估策略和统计收集
+```
+
+**核心方法**：
+- `assess_chunk_quality(chunk)`: 评估单个分块质量
+- `assess_chunks_batch(chunks)`: 批量评估分块质量
+- `update_config(config_or_preset)`: 动态更新配置
+- `get_statistics()`: 获取处理统计信息
+- `is_enabled()`: 检查质量评估是否启用
+
+**工作流程**：
+1. 接收分块对象或分块列表
+2. 根据配置决定是否进行质量评估
+3. 调用评估策略进行质量计算
+4. 收集统计信息并返回结果
+
+### config_simplified.py - 配置系统
+
+#### QualityPreset 枚举
+
+定义三种预设配置：
+```python
+class QualityPreset(Enum):
+    BASIC = "basic"        # 基础质量检查
+    STRICT = "strict"      # 严格质量检查
+    DISABLED = "disabled"  # 禁用质量检查
+```
+
+#### SimplifiedQualityConfig 类
+
+配置管理类，负责：
+- 预设配置的加载和管理
+- 配置参数的验证和转换
+- 默认值的提供和覆盖
+
+**核心配置参数**：
+- `min_length`: 最小分块长度
+- `max_length`: 最大分块长度
+- `optimal_length`: 最优分块长度
+- `enable_quality_check`: 是否启用质量检查
+- `length_weight`: 长度评估权重
+- `completeness_weight`: 完整性评估权重
+
+## 工作流程说明
+
+### 质量评估流程
+
+```mermaid
+sequenceDiagram
+    participant User as 用户代码
+    participant Manager as QualityAssessmentManager
+    participant Strategy as BaseQualityAssessment
+    participant Config as SimplifiedQualityConfig
+
+    User->>Manager: assess_chunk_quality(chunk)
+    Manager->>Config: 检查是否启用质量评估
+    Config-->>Manager: 返回配置状态
+
+    alt 质量评估启用
+        Manager->>Strategy: assess_quality(chunk)
+        Strategy->>Strategy: 计算长度适当性
+        Strategy->>Strategy: 计算基本完整性
+        Strategy->>Strategy: 计算加权总分
+        Strategy-->>Manager: 返回QualityMetrics
+        Manager->>Manager: 更新统计信息
+    else 质量评估禁用
+        Manager->>Manager: 返回满分结果
+    end
+
+    Manager-->>User: 返回质量评估结果
+```
+
+### 评估算法详解
+
+#### 长度适当性评估算法
 
 ```python
-from quality.utils import QualityConfigBuilder
+def _calculate_length_appropriateness(self, chunk):
+    char_count = len(chunk.content)
+    optimal_min = self.optimal_length * 0.8  # 最优区间下限
+    optimal_max = self.optimal_length * 1.2  # 最优区间上限
 
-# 使用配置构建器
-config = (QualityConfigBuilder()
-          .set_default_strategy('aviation')
-          .enable_caching(True, 1000)
-          .configure_aviation_strategy(
-              aviation_weight=0.30,
-              semantic_weight=0.25,
-              density_weight=0.25,
-              structure_weight=0.15,
-              size_weight=0.05
-          )
-          .build())
+    if optimal_min <= char_count <= optimal_max:
+        return 1.0  # 最优长度区间，满分
+    elif char_count < self.min_length:
+        return 0.2  # 过短，严重扣分
+    elif char_count > self.max_length:
+        return 0.3  # 过长，严重扣分
+    else:
+        # 线性映射到0.5-1.0区间
+        if char_count < optimal_min:
+            ratio = (char_count - self.min_length) / (optimal_min - self.min_length)
+        else:
+            ratio = (self.max_length - char_count) / (self.max_length - optimal_max)
+        return 0.5 + ratio * 0.5
+```
 
+#### 基本完整性评估算法
+
+```python
+def _calculate_basic_completeness(self, chunk):
+    content = chunk.content.strip()
+    score = 0.7  # 基础分数
+
+    # 检查结尾标点符号
+    if content.endswith(('.', '。', '!', '！', '?', '？')):
+        score += 0.2  # 有适当结尾标点加分
+    elif content.endswith(('...', '…')):
+        score -= 0.3  # 省略号结尾扣分（可能截断）
+
+    # 检查内容长度和词汇数量
+    if len(content) < 20:
+        score -= 0.4  # 内容过短扣分
+    if len(content.split()) < 3:
+        score -= 0.3  # 词汇过少扣分
+
+    return max(0.0, min(1.0, score))  # 确保分数在0-1范围内
+```
+
+## API接口文档
+
+### QualityAssessmentManager
+
+#### 构造函数
+
+```python
+def __init__(self, config_or_preset=None)
+```
+
+**参数**：
+- `config_or_preset` (str|dict|SimplifiedQualityConfig, optional): 配置参数
+  - 字符串: 预设名称 ('basic', 'strict', 'disabled')
+  - 字典: 自定义配置参数
+  - 配置对象: SimplifiedQualityConfig实例
+  - None: 使用默认配置 ('basic')
+
+#### 主要方法
+
+##### assess_chunk_quality()
+
+```python
+def assess_chunk_quality(self, chunk) -> QualityMetrics
+```
+
+评估单个分块的质量。
+
+**参数**：
+- `chunk` (TextChunk): 待评估的文本分块对象
+
+**返回值**：
+- `QualityMetrics`: 质量评估结果对象
+
+**示例**：
+```python
+manager = QualityAssessmentManager('basic')
+metrics = manager.assess_chunk_quality(chunk)
+print(f"总体评分: {metrics.overall_score:.3f}")
+print(f"长度评分: {metrics.dimension_scores['length_appropriateness']:.3f}")
+print(f"完整性评分: {metrics.dimension_scores['basic_completeness']:.3f}")
+```
+
+##### assess_chunks_batch()
+
+```python
+def assess_chunks_batch(self, chunks) -> List[QualityMetrics]
+```
+
+批量评估多个分块的质量。
+
+**参数**：
+- `chunks` (List[TextChunk]): 待评估的文本分块列表
+
+**返回值**：
+- `List[QualityMetrics]`: 质量评估结果列表
+
+**示例**：
+```python
+manager = QualityAssessmentManager('strict')
+results = manager.assess_chunks_batch(chunks)
+avg_score = sum(r.overall_score for r in results) / len(results)
+print(f"平均质量评分: {avg_score:.3f}")
+```
+
+##### update_config()
+
+```python
+def update_config(self, config_or_preset)
+```
+
+动态更新配置。
+
+**参数**：
+- `config_or_preset`: 新的配置（格式同构造函数）
+
+**示例**：
+```python
+manager = QualityAssessmentManager('basic')
+manager.update_config('strict')  # 切换到严格模式
+```
+
+##### get_statistics()
+
+```python
+def get_statistics() -> Dict[str, Any]
+```
+
+获取处理统计信息。
+
+**返回值**：
+```python
+{
+    'total_assessments': int,           # 总评估次数
+    'total_processing_time_ms': float,  # 总处理时间
+    'average_processing_time_ms': float, # 平均处理时间
+    'enabled_assessments': int,         # 启用状态下的评估次数
+    'disabled_assessments': int         # 禁用状态下的评估次数
+}
+```
+
+### QualityMetrics 数据结构
+
+```python
+@dataclass
+class QualityMetrics:
+    overall_score: float                # 总体质量评分 (0.0-1.0)
+    dimension_scores: Dict[str, float]  # 各维度评分
+    confidence: float                   # 评估置信度 (0.0-1.0)
+    details: Dict[str, Any]            # 详细信息
+    strategy_name: str                 # 使用的策略名称
+    processing_time: float             # 处理时间(毫秒)
+```
+
+**dimension_scores 包含**：
+- `length_appropriateness`: 长度适当性评分
+- `basic_completeness`: 基本完整性评分
+
+**details 包含**：
+- `chunk_length`: 分块字符数
+- `word_count`: 分块词汇数
+- `simplified_evaluation`: 是否使用简化评估
+
+## 配置参数详解
+
+### 预设配置对比
+
+| 参数 | basic | strict | disabled | 说明 |
+|------|-------|--------|----------|------|
+| min_length | 50 | 100 | 1 | 最小分块长度（字符） |
+| max_length | 2000 | 1500 | 10000 | 最大分块长度（字符） |
+| optimal_length | 1000 | 800 | 1000 | 最优分块长度（字符） |
+| enable_quality_check | True | True | False | 是否启用质量检查 |
+| length_weight | 0.6 | 0.5 | 1.0 | 长度评估权重 |
+| completeness_weight | 0.4 | 0.5 | 0.0 | 完整性评估权重 |
+
+### 自定义配置示例
+
+```python
+from chunking.quality import QualityAssessmentManager, SimplifiedQualityConfig
+
+# 方式1: 直接传入字典
+custom_config = {
+    'min_length': 80,
+    'max_length': 1800,
+    'optimal_length': 900,
+    'enable_quality_check': True,
+    'length_weight': 0.7,
+    'completeness_weight': 0.3
+}
+manager = QualityAssessmentManager(custom_config)
+
+# 方式2: 使用配置类
+config = SimplifiedQualityConfig('basic')
+config.update_config(
+    min_length=80,
+    max_length=1800,
+    length_weight=0.7
+)
+manager = QualityAssessmentManager(config)
+
+# 方式3: 基于预设修改
+config = SimplifiedQualityConfig.from_preset('strict')
+config.update_config(optimal_length=900)
 manager = QualityAssessmentManager(config)
 ```
 
-### 集成到分块引擎
+## 集成指南
+
+### 与分块引擎集成
+
+质量评估模块设计为与分块引擎无缝集成：
 
 ```python
 from chunking_engine import ChunkingEngine
+from chunking.quality import QualityAssessmentManager
 
-# 创建分块引擎（自动集成质量评估）
-config = {
-    'chunk_size': 1000,
-    'quality_assessment': {
-        'default_strategy': 'aviation',
-        'enable_caching': True
-    }
-}
+# 在分块引擎中集成质量评估
+class ChunkingEngine:
+    def __init__(self, quality_config='basic'):
+        self.quality_manager = QualityAssessmentManager(quality_config)
 
-engine = ChunkingEngine(config)
+    def chunk_document(self, text, metadata=None, **kwargs):
+        # 执行分块操作
+        chunks = self._perform_chunking(text, metadata, **kwargs)
 
-# 分块时自动进行质量评估
-chunks = engine.chunk_document(text, metadata)
+        # 质量评估
+        if self.quality_manager.is_enabled():
+            quality_results = self.quality_manager.assess_chunks_batch(chunks)
+            # 将质量信息添加到分块元数据
+            for chunk, quality in zip(chunks, quality_results):
+                chunk.metadata['quality_score'] = quality.overall_score
+                chunk.metadata['quality_details'] = quality.dimension_scores
 
-# 查看质量评估信息
-quality_info = engine.get_quality_assessment_info()
-print(f"可用策略: {quality_info['available_strategies']}")
-
-# 批量质量评估
-quality_results = engine.assess_chunks_quality(chunks, 'aviation')
+        return chunks
 ```
 
-### 质量分析
+### 扩展评估逻辑
+
+如需添加新的评估维度，可以继承 `BaseQualityAssessment`：
 
 ```python
-from quality.utils import QualityAnalyzer
+from chunking.quality.base import BaseQualityAssessment, QualityMetrics
 
-# 分析质量分布
-analysis = QualityAnalyzer.analyze_quality_distribution(results)
-print(f"平均评分: {analysis['mean_score']}")
-print(f"质量分布: {analysis['score_distribution']}")
+class CustomQualityAssessment(BaseQualityAssessment):
+    def assess_quality(self, chunk, context=None):
+        # 调用父类的基础评估
+        base_metrics = super().assess_quality(chunk, context)
 
-# 识别质量问题
-issues = QualityAnalyzer.identify_quality_issues(results, threshold=0.6)
-for issue in issues:
-    print(f"分块 {issue['chunk_index']}: {issue['issues']}")
+        # 添加自定义评估维度
+        custom_score = self._calculate_custom_dimension(chunk)
 
-# 生成质量报告
-report = QualityAnalyzer.generate_quality_report(results)
-print(report)
-```
+        # 更新评估结果
+        base_metrics.dimension_scores['custom_dimension'] = custom_score
 
-### 控制质量评估
-
-```python
-# 在分块引擎中控制质量评估
-engine = ChunkingEngine(config)
-
-# 禁用质量评估
-engine.set_quality_assessment_enabled(False)
-
-# 切换评估策略
-engine.set_quality_assessment_strategy('semantic')
-
-# 查询当前状态
-is_enabled = engine.is_quality_assessment_enabled()
-current_strategy = engine.get_quality_assessment_strategy()
-```
-
-## 扩展新策略
-
-### 1. 创建策略类
-
-```python
-from quality.base import QualityAssessmentStrategy, QualityMetrics
-
-class CustomQualityAssessment(QualityAssessmentStrategy):
-    def get_strategy_name(self) -> str:
-        return "custom"
-    
-    def get_supported_dimensions(self) -> List[str]:
-        return ['dimension1', 'dimension2']
-    
-    def assess_quality(self, chunk, context=None) -> QualityMetrics:
-        # 实现自定义评估逻辑
-        dimension_scores = {
-            'dimension1': self._calculate_dimension1(chunk),
-            'dimension2': self._calculate_dimension2(chunk)
+        # 重新计算总分
+        weights = {
+            'length_appropriateness': 0.4,
+            'basic_completeness': 0.3,
+            'custom_dimension': 0.3
         }
-        
-        overall_score = sum(dimension_scores.values()) / len(dimension_scores)
-        
-        return QualityMetrics(
-            overall_score=overall_score,
-            dimension_scores=dimension_scores,
-            confidence=0.8,
-            strategy_name=self.get_strategy_name()
+        base_metrics.overall_score = sum(
+            score * weights.get(dim, 0)
+            for dim, score in base_metrics.dimension_scores.items()
         )
+
+        return base_metrics
+
+    def _calculate_custom_dimension(self, chunk):
+        # 实现自定义评估逻辑
+        return 0.8  # 示例返回值
 ```
 
-### 2. 注册策略
+### 配置调优建议
 
+#### 根据文档类型调优
+
+**技术文档**：
 ```python
-# 注册到管理器
-manager.register_strategy('custom', CustomQualityAssessment(config))
-
-# 使用新策略
-result = manager.assess_chunk_quality(chunk, 'custom')
+config = {
+    'min_length': 100,      # 技术内容通常较长
+    'max_length': 2500,     # 允许更长的技术描述
+    'optimal_length': 1200, # 适中的技术段落长度
+    'length_weight': 0.7,   # 更重视长度适当性
+    'completeness_weight': 0.3
+}
 ```
 
-## 配置参数
-
-### 管理器配置
-- `default_strategy`: 默认评估策略名称
-- `enable_caching`: 是否启用结果缓存
-- `cache_size`: 缓存大小限制
-
-### 航空策略配置
-- `weights`: 各维度权重配置
-- `min_chunk_size`: 最小分块大小
-- `max_chunk_size`: 最大分块大小
-- `chunk_size`: 目标分块大小
-
-### 语义策略配置
-- `semantic_threshold`: 语义相似度阈值
-- `coherence_window`: 连贯性检查窗口大小
-
-### 长度策略配置
-- `target_length`: 目标分块长度
-- `tolerance_ratio`: 长度容忍比例
-
-### 完整性策略配置
-- `completeness_threshold`: 完整性阈值
-- `reference_patterns`: 引用模式配置
-
-## 性能优化
-
-1. **结果缓存**: 启用缓存可以避免重复计算相同内容的质量评分
-2. **批量评估**: 使用批量评估接口可以提高处理效率
-3. **策略选择**: 根据文档类型选择合适的评估策略
-4. **配置优化**: 调整权重和阈值参数以适应特定需求
-
-## 测试和验证
-
-运行测试脚本验证重构效果：
-
-```bash
-python test_quality_refactor.py
+**对话文本**：
+```python
+config = {
+    'min_length': 30,       # 对话可能较短
+    'max_length': 800,      # 单轮对话不宜过长
+    'optimal_length': 400,  # 适中的对话长度
+    'length_weight': 0.4,   # 更重视完整性
+    'completeness_weight': 0.6
+}
 ```
 
-测试包括：
-- 不同策略的评估效果对比
-- 批量评估功能验证
-- 配置构建器测试
-- 质量报告生成测试
+**新闻文章**：
+```python
+config = {
+    'min_length': 80,       # 新闻段落有一定长度
+    'max_length': 1500,     # 控制段落长度
+    'optimal_length': 800,  # 标准新闻段落
+    'length_weight': 0.5,   # 平衡长度和完整性
+    'completeness_weight': 0.5
+}
+```
 
-## 兼容性
+#### 性能优化建议
 
-- 保持与原有 `ChunkingEngine` 的完全兼容性
-- 原有的质量评估方法仍然可用（作为回退机制）
-- 配置参数向后兼容
+1. **批量处理**: 使用 `assess_chunks_batch()` 而非循环调用单个评估
+2. **禁用评估**: 在性能敏感场景使用 `disabled` 预设
+3. **配置缓存**: 重用 `QualityAssessmentManager` 实例
+4. **统计监控**: 定期检查 `get_statistics()` 监控性能
 
-## 未来扩展
+### 故障排除
 
-1. **机器学习策略**: 基于训练数据的质量评估模型
-2. **多模态评估**: 支持图像、表格等多模态内容的质量评估
-3. **实时优化**: 基于评估结果动态调整分块参数
-4. **分布式评估**: 支持大规模文档的分布式质量评估
+#### 常见问题
+
+1. **评估结果异常**
+   - 检查分块内容是否为空或格式异常
+   - 验证配置参数是否合理
+   - 确认 TextChunk 对象结构正确
+
+2. **性能问题**
+   - 使用批量评估接口
+   - 考虑禁用质量评估
+   - 检查配置参数是否过于复杂
+
+3. **集成问题**
+   - 确认导入路径正确
+   - 检查 TextChunk 对象兼容性
+   - 验证配置格式
+
+---
+
+**模块版本**: v2.0.0
+**创建日期**: 2024-01-15
+**作者**: Sniperz
+**最后更新**: 2024-06-24

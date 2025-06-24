@@ -164,10 +164,10 @@ class ChunkingEngine:
 
     def _init_quality_assessment_manager(self) -> None:
         """
-        初始化质量评估管理器
+        初始化质量评估管理器（简化版）
         """
         try:
-            # 尝试导入质量评估管理器
+            # 尝试导入简化的质量评估管理器
             try:
                 from .quality.manager import QualityAssessmentManager
             except ImportError as e:
@@ -179,17 +179,33 @@ class ChunkingEngine:
                 self.quality_manager = None
                 return
 
-            # 质量评估配置
+            # 简化的质量评估配置
             quality_config = self.config.get('quality_assessment', {})
-            quality_config.update({
-                'min_chunk_size': self.min_chunk_size,
-                'max_chunk_size': self.max_chunk_size,
-                'chunk_size': self.chunk_size
-            })
+
+            # 映射旧版配置到新版配置
+            simplified_config = {
+                'min_length': quality_config.get('min_chunk_size', self.min_chunk_size),
+                'max_length': quality_config.get('max_chunk_size', self.max_chunk_size),
+                'optimal_length': quality_config.get('chunk_size', self.chunk_size),
+                'enable_quality_check': quality_config.get('enable_assessment', True)
+            }
 
             try:
-                self.quality_manager = QualityAssessmentManager(quality_config)
-                self.logger.info("质量评估管理器初始化完成")
+                # 根据质量策略选择预设配置
+                strategy = self.quality_strategy.lower()
+                if strategy in ['disabled', 'none']:
+                    preset = 'disabled'
+                elif strategy in ['strict', 'high']:
+                    preset = 'strict'
+                else:
+                    preset = 'basic'
+
+                self.quality_manager = QualityAssessmentManager(preset)
+                # 应用自定义配置覆盖
+                if simplified_config:
+                    self.quality_manager.config.update_config(**simplified_config)
+
+                self.logger.info(f"简化质量评估管理器初始化完成，使用预设: {preset}")
             except Exception as e:
                 self.logger.warning(f"质量评估管理器创建失败，将使用基础评估: {e}")
                 self.quality_manager = None
@@ -209,108 +225,200 @@ class ChunkingEngine:
         self.strategies[name] = strategy
         self.logger.info(f"注册分块策略: {name}")
     
-    def chunk_document(self, text_content: str, 
+    def chunk_document(self, text_content: str,
                       document_metadata: Dict[str, Any],
-                      strategy_name: Optional[str] = None) -> List[TextChunk]:
+                      preset_name: Optional[str] = None) -> List[TextChunk]:
         """
-        对文档进行分块处理
-        
+        对文档进行分块处理（简化版：基于配置预设）
+
         Args:
             text_content: 文档文本内容
             document_metadata: 文档元数据
-            strategy_name: 指定的分块策略名称
-            
+            preset_name: 指定的配置预设名称
+
         Returns:
             list: 分块结果列表
-            
+
         Raises:
-            ValueError: 策略不存在或文本为空
+            ValueError: 预设不存在或文本为空
         """
         try:
             if not text_content or not text_content.strip():
                 raise ValueError("文本内容为空")
-            
-            # 选择分块策略
-            strategy_name = strategy_name or self._select_strategy(document_metadata)
-            
-            if strategy_name not in self.strategies:
-                raise ValueError(f"分块策略不存在: {strategy_name}")
-            
-            strategy = self.strategies[strategy_name]
-            
-            self.logger.info(f"使用分块策略: {strategy_name}")
-            
-            # 执行分块
-            chunks = strategy.chunk_text(text_content, document_metadata)
-            
-            # 后处理分块结果
-            processed_chunks = self._post_process_chunks(chunks, document_metadata)
-            
-            self.logger.info(f"分块完成: {len(processed_chunks)}个分块")
-            
-            return processed_chunks
-            
+
+            # 选择配置预设
+            preset_name = preset_name or self._select_strategy(document_metadata)
+
+            # 获取预设配置
+            preset_config = self._load_preset_config(preset_name)
+
+            # 使用唯一的recursive策略，但应用预设配置
+            if 'recursive' not in self.strategies:
+                raise ValueError("核心分块策略未初始化")
+
+            strategy = self.strategies['recursive']
+
+            self.logger.info(f"使用配置预设: {preset_name}")
+
+            # 临时更新策略配置
+            original_config = strategy.config.copy()
+            strategy.config.update(preset_config)
+
+            try:
+                # 执行分块
+                chunks = strategy.chunk_text(text_content, document_metadata)
+
+                # 后处理分块结果
+                processed_chunks = self._post_process_chunks(chunks, document_metadata)
+
+                self.logger.info(f"分块完成: {len(processed_chunks)}个分块，使用预设: {preset_name}")
+
+                return processed_chunks
+
+            finally:
+                # 恢复原始配置
+                strategy.config = original_config
+
         except Exception as e:
             self.logger.error(f"文档分块失败: {e}")
             raise
     
     def _select_strategy(self, document_metadata: Dict[str, Any]) -> str:
         """
-        根据文档元数据选择合适的分块策略
-        
+        根据文档元数据选择合适的配置预设
+
         Args:
             document_metadata: 文档元数据
-            
+
         Returns:
-            str: 选择的策略名称
+            str: 选择的预设名称
         """
         try:
-            # 根据文档类型选择策略
+            # 根据文档类型选择预设
             doc_type = document_metadata.get('document_type', '').lower()
             file_extension = document_metadata.get('file_extension', '').lower()
-            
+
             # 航空文档特殊处理
             title = document_metadata.get('title', '').lower()
             subject = document_metadata.get('subject', '').lower()
-            
+
             # 维修手册
-            if any(keyword in title or keyword in subject 
+            if any(keyword in title or keyword in subject
                    for keyword in ['维修', '手册', 'maintenance', 'manual']):
                 return 'aviation_maintenance'
-            
+
             # 规章制度
-            elif any(keyword in title or keyword in subject 
+            elif any(keyword in title or keyword in subject
                      for keyword in ['规章', '制度', 'regulation', 'policy']):
                 return 'aviation_regulation'
-            
+
             # 技术标准
-            elif any(keyword in title or keyword in subject 
+            elif any(keyword in title or keyword in subject
                      for keyword in ['标准', '规范', 'standard', 'specification']):
                 return 'aviation_standard'
-            
+
             # 培训资料
-            elif any(keyword in title or keyword in subject 
+            elif any(keyword in title or keyword in subject
                      for keyword in ['培训', '教学', 'training', 'education']):
                 return 'aviation_training'
-            
-            # 根据文档格式选择
-            elif doc_type == 'pdf' or file_extension == '.pdf':
-                return 'structure'
-            elif doc_type in ['word', 'docx'] or file_extension in ['.docx', '.doc']:
-                return 'recursive'  # Word文档使用递归分块器
-            elif doc_type in ['text', 'txt'] or file_extension in ['.txt', '.md']:
-                return 'recursive'  # 纯文本使用递归分块器
-            elif doc_type in ['excel', 'xlsx'] or file_extension in ['.xlsx', '.xls']:
-                return 'table'
-            elif doc_type in ['powerpoint', 'pptx'] or file_extension in ['.pptx', '.ppt']:
-                return 'slide'
 
-            # 默认策略
-            return self.default_strategy
-            
+            # 根据文档格式选择预设
+            elif doc_type == 'pdf' or file_extension == '.pdf':
+                return 'structure'  # 使用结构化预设
+            elif doc_type in ['word', 'docx'] or file_extension in ['.docx', '.doc']:
+                return 'standard'   # Word文档使用标准预设
+            elif doc_type in ['text', 'txt'] or file_extension in ['.txt', '.md']:
+                return 'semantic'   # 纯文本使用语义预设
+
+            # 默认预设
+            return 'standard'
+
         except Exception as e:
-            self.logger.warning(f"策略选择失败，使用默认策略: {e}")
-            return self.default_strategy
+            self.logger.warning(f"预设选择失败，使用标准预设: {e}")
+            return 'standard'
+
+    def _load_preset_config(self, preset_name: str) -> Dict[str, Any]:
+        """
+        加载预设配置
+
+        Args:
+            preset_name: 预设名称
+
+        Returns:
+            dict: 预设配置
+        """
+        try:
+            config_manager = get_config_manager()
+            presets = config_manager.get_chunking_config('presets')
+
+            if not presets or preset_name not in presets:
+                self.logger.warning(f"预设 {preset_name} 不存在，使用标准预设")
+                preset_name = 'standard'
+
+            if preset_name not in presets:
+                # 如果连标准预设都不存在，返回默认配置
+                self.logger.warning("标准预设不存在，使用默认配置")
+                return self._get_fallback_config()
+
+            preset_config = presets[preset_name].copy()
+
+            # 移除非分块器配置项
+            preset_config.pop('strategy', None)
+            preset_config.pop('description', None)
+
+            self.logger.debug(f"加载预设配置: {preset_name}")
+            return preset_config
+
+        except Exception as e:
+            self.logger.error(f"加载预设配置失败: {e}")
+            return self._get_fallback_config()
+
+    def get_available_presets(self) -> List[str]:
+        """
+        获取可用的配置预设列表
+
+        Returns:
+            list: 预设名称列表
+        """
+        try:
+            config_manager = get_config_manager()
+            presets = config_manager.get_chunking_config('presets')
+            return list(presets.keys()) if presets else ['standard']
+        except Exception as e:
+            self.logger.error(f"获取预设列表失败: {e}")
+            return ['standard']
+
+    def get_preset_info(self, preset_name: str) -> Dict[str, Any]:
+        """
+        获取预设配置信息
+
+        Args:
+            preset_name: 预设名称
+
+        Returns:
+            dict: 预设信息
+        """
+        try:
+            config_manager = get_config_manager()
+            presets = config_manager.get_chunking_config('presets')
+
+            if not presets or preset_name not in presets:
+                return {'error': f'预设不存在: {preset_name}'}
+
+            preset_config = presets[preset_name]
+
+            return {
+                'name': preset_name,
+                'description': preset_config.get('description', '无描述'),
+                'chunk_size': preset_config.get('chunk_size', 1000),
+                'chunk_overlap': preset_config.get('chunk_overlap', 200),
+                'separators_count': len(preset_config.get('separators', [])),
+                'config': preset_config
+            }
+
+        except Exception as e:
+            self.logger.error(f"获取预设信息失败: {e}")
+            return {'error': str(e)}
     
     def _post_process_chunks(self, chunks: List[TextChunk], 
                            document_metadata: Dict[str, Any]) -> List[TextChunk]:
@@ -396,12 +504,9 @@ class ChunkingEngine:
             float: 质量评分（0-1）
         """
         try:
-            # 如果质量评估管理器可用，使用新的评估系统
+            # 如果质量评估管理器可用，使用简化的评估系统
             if hasattr(self, 'quality_manager') and self.quality_manager:
-                # 选择评估策略
-                strategy_name = self.quality_strategy
-
-                # 构建评估上下文
+                # 构建评估上下文（简化版本中基本不使用）
                 context = {
                     'document_metadata': getattr(chunk.metadata, '__dict__', {}),
                     'chunk_size_config': {
@@ -411,10 +516,8 @@ class ChunkingEngine:
                     }
                 }
 
-                # 执行质量评估
-                quality_metrics = self.quality_manager.assess_chunk_quality(
-                    chunk, strategy_name, context
-                )
+                # 执行简化的质量评估（不需要strategy_name参数）
+                quality_metrics = self.quality_manager.assess_chunk_quality(chunk, context)
 
                 return quality_metrics.overall_score
 
@@ -507,7 +610,7 @@ class ChunkingEngine:
 
     def set_quality_assessment_strategy(self, strategy_name: str) -> bool:
         """
-        设置质量评估策略
+        设置质量评估策略（简化版本中支持的策略：basic, strict, disabled）
 
         Args:
             strategy_name: 策略名称
@@ -517,13 +620,16 @@ class ChunkingEngine:
         """
         try:
             if hasattr(self, 'quality_manager') and self.quality_manager:
-                available_strategies = self.quality_manager.get_available_strategies()
-                if strategy_name in available_strategies:
-                    self.quality_strategy = strategy_name
+                # 简化版本支持的策略
+                supported_strategies = ['basic', 'strict', 'disabled']
+                if strategy_name.lower() in supported_strategies:
+                    self.quality_strategy = strategy_name.lower()
+                    # 更新质量管理器配置
+                    self.quality_manager.update_config(strategy_name.lower())
                     self.logger.info(f"质量评估策略设置为: {strategy_name}")
                     return True
                 else:
-                    self.logger.error(f"策略 {strategy_name} 不存在。可用策略: {available_strategies}")
+                    self.logger.error(f"策略 {strategy_name} 不支持。支持的策略: {supported_strategies}")
                     return False
             else:
                 self.logger.error("质量评估管理器未初始化")
@@ -549,50 +655,23 @@ class ChunkingEngine:
 
 
     def _register_builtin_strategies(self) -> None:
-        """注册内置分块策略"""
+        """注册内置分块策略（简化版：仅注册recursive_chunker）"""
         try:
-            # 优先注册不依赖外部服务的策略
             from .recursive_chunker import RecursiveCharacterChunker
+
+            # 注册唯一的分块策略实现
             self.register_strategy('recursive', RecursiveCharacterChunker(self.config))
 
-            # 尝试注册其他策略，如果失败则跳过
-            try:
-                from .semantic_chunker import SemanticChunker
-                self.register_strategy('semantic', SemanticChunker(self.config))
-            except ImportError as e:
-                self.logger.warning(f"语义分块器导入失败，跳过注册: {e}")
-
-            try:
-                from .structure_chunker import StructureChunker
-                self.register_strategy('structure', StructureChunker(self.config))
-            except ImportError as e:
-                self.logger.warning(f"结构分块器导入失败，跳过注册: {e}")
-
-            try:
-                from .aviation_strategy import (
-                    AviationMaintenanceStrategy,
-                    AviationRegulationStrategy,
-                    AviationStandardStrategy,
-                    AviationTrainingStrategy
-                )
-                # 注册航空专用策略
-                self.register_strategy('aviation_maintenance', AviationMaintenanceStrategy(self.config))
-                self.register_strategy('aviation_regulation', AviationRegulationStrategy(self.config))
-                self.register_strategy('aviation_standard', AviationStandardStrategy(self.config))
-                self.register_strategy('aviation_training', AviationTrainingStrategy(self.config))
-            except ImportError as e:
-                self.logger.warning(f"航空策略导入失败，跳过注册: {e}")
+            self.logger.info("简化分块引擎初始化完成，使用统一的recursive_chunker + 配置预设系统")
 
         except Exception as e:
-            self.logger.error(f"内置策略注册失败: {e}")
-            # 确保至少有一个基础策略可用
-            if not self.strategies:
-                self.logger.warning("没有可用的分块策略，系统将无法正常工作")
+            self.logger.error(f"分块策略注册失败: {e}")
+            raise RuntimeError(f"无法初始化分块引擎: {e}")
     
     def get_available_strategies(self) -> List[str]:
         """
-        获取可用的分块策略列表
-        
+        获取可用的分块策略列表（简化版：仅返回recursive）
+
         Returns:
             list: 策略名称列表
         """
@@ -627,7 +706,7 @@ class ChunkingEngine:
 
     def get_quality_assessment_info(self) -> Dict[str, Any]:
         """
-        获取质量评估系统信息
+        获取质量评估系统信息（简化版）
 
         Returns:
             dict: 质量评估系统信息
@@ -636,12 +715,16 @@ class ChunkingEngine:
             if not hasattr(self, 'quality_manager') or not self.quality_manager:
                 return {'error': '质量评估管理器未初始化'}
 
+            # 获取简化版本的信息
+            strategy_info = self.quality_manager.get_strategy_info()
+            stats = self.quality_manager.get_statistics()
+
             return {
-                'available_strategies': self.quality_manager.get_available_strategies(),
-                'default_strategy': self.quality_manager.default_strategy,
-                'cache_enabled': self.quality_manager.enable_caching,
-                'cache_stats': self.quality_manager.get_cache_stats(),
-                'strategies_info': self.quality_manager.get_all_strategies_info()
+                'available_strategies': ['basic', 'strict', 'disabled'],
+                'current_strategy': strategy_info.get('preset', 'basic'),
+                'enabled': self.quality_manager.is_enabled(),
+                'strategy_info': strategy_info,
+                'statistics': stats
             }
 
         except Exception as e:
@@ -650,10 +733,10 @@ class ChunkingEngine:
 
     def set_quality_strategy(self, strategy_name: str) -> bool:
         """
-        设置默认质量评估策略
+        设置默认质量评估策略（简化版）
 
         Args:
-            strategy_name: 策略名称
+            strategy_name: 策略名称 ('basic', 'strict', 'disabled')
 
         Returns:
             bool: 是否设置成功
@@ -663,19 +746,23 @@ class ChunkingEngine:
                 self.logger.error("质量评估管理器未初始化")
                 return False
 
-            return self.quality_manager.set_default_strategy(strategy_name)
+            # 使用简化版本的配置更新方法
+            self.quality_manager.update_config(strategy_name)
+            self.quality_strategy = strategy_name
+            self.logger.info(f"质量评估策略设置为: {strategy_name}")
+            return True
 
         except Exception as e:
             self.logger.error(f"设置质量策略失败: {e}")
             return False
 
-    def assess_chunks_quality(self, chunks: List[TextChunk], strategy_name: Optional[str] = None) -> List[Dict[str, Any]]:
+    def assess_chunks_quality(self, chunks: List[TextChunk], preset_name: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         批量评估分块质量
 
         Args:
             chunks: 分块列表
-            strategy_name: 指定的评估策略名称
+            preset_name: 指定的配置预设名称（暂未使用，保留用于未来扩展）
 
         Returns:
             list: 质量评估结果列表
@@ -685,8 +772,8 @@ class ChunkingEngine:
                 self.logger.warning("质量评估管理器未初始化，使用基础评估逻辑")
                 return [{'overall_score': self._get_basic_quality_score(chunk)} for chunk in chunks]
 
-            # 使用质量管理器进行批量评估
-            quality_results = self.quality_manager.assess_chunks_batch(chunks, strategy_name)
+            # 使用简化的质量管理器进行批量评估
+            quality_results = self.quality_manager.assess_chunks_batch(chunks)
 
             # 转换为字典格式
             return [
@@ -705,73 +792,4 @@ class ChunkingEngine:
             self.logger.error(f"批量质量评估失败: {e}")
             return [{'overall_score': 0.5, 'error': str(e)} for _ in chunks]
     
-    def validate_chunks(self, chunks: List[TextChunk]) -> Dict[str, Any]:
-        """
-        验证分块结果
-        
-        Args:
-            chunks: 分块列表
-            
-        Returns:
-            dict: 验证结果
-        """
-        try:
-            validation_result = {
-                'total_chunks': len(chunks),
-                'valid_chunks': 0,
-                'invalid_chunks': 0,
-                'quality_scores': [],
-                'size_distribution': {
-                    'min_size': float('inf'),
-                    'max_size': 0,
-                    'avg_size': 0
-                },
-                'issues': []
-            }
-            
-            total_chars = 0
-            
-            for i, chunk in enumerate(chunks):
-                is_valid = True
-                
-                # 检查分块大小
-                if chunk.character_count < self.min_chunk_size:
-                    validation_result['issues'].append(f"分块{i}过小: {chunk.character_count}字符")
-                    is_valid = False
-                elif chunk.character_count > self.max_chunk_size:
-                    validation_result['issues'].append(f"分块{i}过大: {chunk.character_count}字符")
-                    is_valid = False
-                
-                # 检查内容质量
-                if chunk.quality_score < 0.3:
-                    validation_result['issues'].append(f"分块{i}质量过低: {chunk.quality_score}")
-                    is_valid = False
-                
-                if is_valid:
-                    validation_result['valid_chunks'] += 1
-                else:
-                    validation_result['invalid_chunks'] += 1
-                
-                # 统计信息
-                validation_result['quality_scores'].append(chunk.quality_score)
-                total_chars += chunk.character_count
-                
-                validation_result['size_distribution']['min_size'] = min(
-                    validation_result['size_distribution']['min_size'], 
-                    chunk.character_count
-                )
-                validation_result['size_distribution']['max_size'] = max(
-                    validation_result['size_distribution']['max_size'], 
-                    chunk.character_count
-                )
-            
-            # 计算平均值
-            if chunks:
-                validation_result['size_distribution']['avg_size'] = total_chars / len(chunks)
-                validation_result['avg_quality_score'] = sum(validation_result['quality_scores']) / len(validation_result['quality_scores'])
-            
-            return validation_result
-            
-        except Exception as e:
-            self.logger.error(f"分块验证失败: {e}")
-            return {'error': str(e)}
+

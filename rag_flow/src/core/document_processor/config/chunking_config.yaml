@@ -174,32 +174,83 @@ aviation:
       chunk_size: 500
       preserve_order: true
 
-# 预设配置模板
+# 预设配置模板（简化重构版）
 presets:
   # 快速配置
   quick:
     strategy: "recursive"
     chunk_size: 500
     chunk_overlap: 50
-  
+    separators: ["\n\n", "\n", "。", ".", " ", ""]
+
   # 标准配置
   standard:
     strategy: "recursive"
     chunk_size: 1000
     chunk_overlap: 200
-  
-  # 高质量配置
-  high_quality:
-    strategy: "semantic"
-    target_chunk_size: 800
-    similarity_threshold: 0.8
-  
-  # 航空专用配置
-  aviation_standard:
-    strategy: "aviation"
+    separators: ["\n\n", "\n\n\n", "\n第", "\n章", "\n节", "\n", "。", "！", "？", ".", "!", "?", "；", ";", "，", ",", " ", ""]
+
+  # 语义分块预设（替代原semantic_chunker）
+  semantic:
+    strategy: "recursive"
+    chunk_size: 800
+    chunk_overlap: 100
+    min_chunk_size: 200
+    max_chunk_size: 1500
+    separators: ["。", "！", "？", ".", "!", "?", "\n\n", "\n", "；", ";", "，", ",", " ", ""]
+    description: "优先按句子分割，适合需要保持语义完整性的场景"
+
+  # 结构分块预设（替代原structure_chunker）
+  structure:
+    strategy: "recursive"
+    chunk_size: 1000
+    chunk_overlap: 150
+    separators: ["\n第", "\n章", "\n节", "\n条", "\nChapter", "\nSection", "\nArticle", "\n\n•", "\n\n-", "\n\n*", "\n\n1.", "\n\n2.", "\n\n3.", "\n\n", "\n", "。", ".", " ", ""]
+    preserve_headers: true
+    description: "优先按文档结构分割，适合有明确层级结构的文档"
+
+  # 航空维修手册预设（替代原AviationMaintenanceStrategy）
+  aviation_maintenance:
+    strategy: "recursive"
     chunk_size: 1200
     chunk_overlap: 150
+    separators: ["\n任务", "\nTask", "\nTASK", "\n步骤", "\nStep", "\n警告", "\nWARNING", "\n注意", "\nCAUTION", "\n所需工具", "\nRequired Tools", "\n第", "\n章", "\n节", "\n条", "\n\n", "\n", "。", ".", " ", ""]
+    description: "针对航空维修手册优化，识别任务、步骤、警告等关键结构"
+
+  # 航空规章制度预设（替代原AviationRegulationStrategy）
+  aviation_regulation:
+    strategy: "recursive"
+    chunk_size: 800
+    chunk_overlap: 100
+    separators: ["\n第", "\n条", "\nArticle", "\n条款", "\n定义", "\nDefinition", "\n术语", "\n\n", "\n", "。", "！", "？", ".", "!", "?", "；", ";", " ", ""]
+    description: "针对航空规章制度优化，识别条款、定义等法规结构"
+
+  # 航空技术标准预设（替代原AviationStandardStrategy）
+  aviation_standard:
+    strategy: "recursive"
+    chunk_size: 1000
+    chunk_overlap: 150
+    separators: ["\n要求", "\nRequirement", "\nREQ", "\n规格", "\nSpecification", "\n试验方法", "\nTest Method", "\n测试程序", "\n第", "\n章", "\n节", "\n\n", "\n", "。", ".", " ", ""]
+    description: "针对航空技术标准优化，识别要求、规格、测试方法等技术结构"
+
+  # 航空培训资料预设（替代原AviationTrainingStrategy）
+  aviation_training:
+    strategy: "recursive"
+    chunk_size: 900
+    chunk_overlap: 120
+    separators: ["\n学习目标", "\nLearning Objective", "\n教学目标", "\n知识点", "\nKnowledge Point", "\n要点", "\n练习", "\nExercise", "\n习题", "\n第", "\n章", "\n节", "\n\n", "\n", "。", ".", " ", ""]
+    description: "针对航空培训资料优化，识别学习目标、知识点、练习等教学结构"
+
+  # 高质量配置（原high_quality的简化版）
+  high_quality:
+    strategy: "recursive"
+    chunk_size: 800
+    chunk_overlap: 160
+    min_chunk_size: 300
+    max_chunk_size: 1200
+    separators: ["\n\n", "\n\n\n", "\n第", "\n章", "\n节", "\n条", "\nChapter", "\nSection", "\n", "。", "！", "？", ".", "!", "?", "；", ";", "，", ",", " ", ""]
     enable_quality_assessment: true
+    description: "高质量分块配置，平衡结构完整性和内容连贯性"
 
 # 环境变量映射
 environment_overrides:

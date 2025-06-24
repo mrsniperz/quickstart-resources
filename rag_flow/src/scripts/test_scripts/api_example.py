@@ -61,7 +61,6 @@ class ChunkingRequest(BaseModel):
     
     # 输出控制
     include_statistics: bool = Field(True, description="是否包含统计信息")
-    include_validation: bool = Field(False, description="是否包含验证信息")
 
 # 响应模型
 class ChunkInfo(BaseModel):
@@ -88,7 +87,6 @@ class ChunkingResponse(BaseModel):
     success: bool = Field(..., description="处理是否成功")
     chunks: List[ChunkInfo] = Field(..., description="分块结果列表")
     statistics: Optional[Statistics] = Field(None, description="统计信息")
-    validation: Optional[Dict[str, Any]] = Field(None, description="验证信息")
     processing_time: float = Field(..., description="处理时间（秒）")
     strategy_used: str = Field(..., description="使用的分块策略")
     message: Optional[str] = Field(None, description="处理消息")
@@ -191,10 +189,7 @@ async def chunk_text(request: ChunkingRequest):
         # 添加可选信息
         if request.include_statistics:
             response.statistics = Statistics(**result['statistics'])
-        
-        if request.include_validation:
-            response.validation = result.get('validation', {})
-        
+
         return response
         
     except Exception as e:

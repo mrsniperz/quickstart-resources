@@ -88,15 +88,15 @@ class SimplifiedQualityAssessmentManager:
         try:
             start_time = time.time()
             
-            # 如果禁用质量检查，直接返回满分
+            # 如果禁用质量检查，返回None表示未评估
             if not self.config.get_config().get('enable_quality_check', True):
                 return QualityMetrics(
-                    overall_score=1.0,
-                    dimension_scores={'length_appropriateness': 1.0, 'basic_completeness': 1.0},
-                    confidence=1.0,
-                    details={'quality_check_disabled': True},
+                    overall_score=None,
+                    dimension_scores={'length_appropriateness': None, 'basic_completeness': None},
+                    confidence=None,
+                    details={'quality_check_disabled': True, 'note': 'Quality assessment disabled'},
                     strategy_name='disabled',
-                    processing_time=0.1
+                    processing_time=0.0
                 )
             
             # 使用缓存（基于内容长度的简单缓存）

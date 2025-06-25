@@ -28,6 +28,24 @@
         "run",
         "@playwright/mcp"
       ]
+    },
+    "sequential-thinking": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@mcp_hub_org/cli@latest",
+        "run",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ]
+    },
+    "@antv/mcp-server-chart": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@mcp_hub_org/cli@latest",
+        "run",
+        "@antv/mcp-server-chart"
+      ]
     }
   }
 }

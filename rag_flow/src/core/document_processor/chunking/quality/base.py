@@ -42,22 +42,25 @@ class QualityMetrics:
         strategy_name: 使用的评估策略名称
         processing_time: 评估处理时间（毫秒）
     """
-    overall_score: float
-    dimension_scores: Dict[str, float] = field(default_factory=dict)
-    confidence: float = 1.0
+    overall_score: Optional[float]
+    dimension_scores: Dict[str, Optional[float]] = field(default_factory=dict)
+    confidence: Optional[float] = 1.0
     details: Dict[str, Any] = field(default_factory=dict)
     strategy_name: str = "basic"
     processing_time: float = 0.0
     
     def __post_init__(self):
         """后处理验证"""
-        # 确保评分在有效范围内
-        self.overall_score = max(0.0, min(1.0, self.overall_score))
-        self.confidence = max(0.0, min(1.0, self.confidence))
-        
+        # 确保评分在有效范围内（如果不为None）
+        if self.overall_score is not None:
+            self.overall_score = max(0.0, min(1.0, self.overall_score))
+        if self.confidence is not None:
+            self.confidence = max(0.0, min(1.0, self.confidence))
+
         # 验证维度评分
         for dimension, score in self.dimension_scores.items():
-            self.dimension_scores[dimension] = max(0.0, min(1.0, score))
+            if score is not None:
+                self.dimension_scores[dimension] = max(0.0, min(1.0, score))
     
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典格式"""

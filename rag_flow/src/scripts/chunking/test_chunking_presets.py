@@ -223,12 +223,16 @@ class SimplifiedChunkingTester:
         
         for chunk in chunks:
             if isinstance(chunk, dict):
-                quality = chunk.get('quality_score', 0.8)
+                quality = chunk.get('quality_score')
             else:
-                quality = getattr(chunk, 'quality_score', 0.8)
-            quality_scores.append(quality)
-        
-        avg_quality = sum(quality_scores) / len(quality_scores) if quality_scores else 0.8
+                quality = getattr(chunk, 'quality_score', None)
+
+            # 只有当质量评分不为None时才添加到列表中
+            if quality is not None:
+                quality_scores.append(quality)
+
+        # 如果有质量评分，计算平均值；否则返回None表示未评估
+        avg_quality = sum(quality_scores) / len(quality_scores) if quality_scores else None
         
         return {
             'total_chunks': total_chunks,
@@ -302,7 +306,11 @@ class SimplifiedChunkingTester:
                 print(f"  分块数量: {stats['chunk_count']}")
                 print(f"  处理时间: {result['processing_time']:.3f}秒")
                 print(f"  平均大小: {stats['average_chunk_size']:.1f}字符")
-                print(f"  质量评分: {result['validation'].get('avg_quality_score', 0):.3f}")
+                quality_score = result['validation'].get('avg_quality_score')
+                if quality_score is not None:
+                    print(f"  质量评分: {quality_score:.3f}")
+                else:
+                    print(f"  质量评分: 未评估")
                 
             except Exception as e:
                 print(f"  ❌ 测试失败: {e}")
@@ -407,7 +415,11 @@ class SimplifiedChunkingTester:
 
                 print(f"  分块数量: {stats['chunk_count']}")
                 print(f"  处理时间: {processing_time:.3f}秒")
-                print(f"  平均质量评分: {validation.get('avg_quality_score', 0):.3f}")
+                quality_score = validation.get('avg_quality_score')
+                if quality_score is not None:
+                    print(f"  平均质量评分: {quality_score:.3f}")
+                else:
+                    print(f"  平均质量评分: 未评估")
                 print(f"  平均分块大小: {stats['average_chunk_size']:.1f}字符")
 
                 # 分析质量检测效果
@@ -431,9 +443,10 @@ class SimplifiedChunkingTester:
             for strategy, result in results.items():
                 stats = result['statistics']
                 validation = result['validation']
-                quality_score = validation.get('avg_quality_score', 0)
+                quality_score = validation.get('avg_quality_score')
+                quality_str = f"{quality_score:>9.3f}" if quality_score is not None else "    未评估"
                 print(f"{strategy:>10} {stats['chunk_count']:>8} "
-                      f"{quality_score:>9.3f} {result['processing_time']:>9.3f}s")
+                      f"{quality_str} {result['processing_time']:>9.3f}s")
 
         # 详细质量分析
         self._analyze_quality_impact(results)
@@ -473,7 +486,10 @@ class SimplifiedChunkingTester:
             print(f"\n  📈 {strategy} 策略影响:")
             print(f"     时间开销: {time_overhead:+.1f}%")
             print(f"     分块数量变化: {chunk_diff:+d}")
-            print(f"     质量评分: {quality_score:.3f}")
+            if quality_score is not None:
+                print(f"     质量评分: {quality_score:.3f}")
+            else:
+                print(f"     质量评分: 未评估")
 
             # 给出建议
             if time_overhead < 5:
@@ -529,7 +545,11 @@ class SimplifiedChunkingTester:
         print(f"\n🔍 质量验证:")
         print(f"   有效分块: {validation['valid_chunks']}")
         print(f"   无效分块: {validation['invalid_chunks']}")
-        print(f"   平均质量评分: {validation.get('avg_quality_score', 0):.3f}")
+        quality_score = validation.get('avg_quality_score')
+        if quality_score is not None:
+            print(f"   平均质量评分: {quality_score:.3f}")
+        else:
+            print(f"   平均质量评分: 未评估")
 
         if validation.get('issues'):
             print(f"   ⚠️  发现问题: {len(validation['issues'])}个")
@@ -560,7 +580,10 @@ class SimplifiedChunkingTester:
                 metadata = getattr(chunk, 'metadata', {})
 
             print(f"大小: {char_count} 字符 | 词数: {word_count}")
-            print(f"质量评分: {quality_score:.3f}")
+            if quality_score is not None:
+                print(f"质量评分: {quality_score:.3f}")
+            else:
+                print(f"质量评分: 未评估")
 
             # 显示内容预览
             content_preview = content[:200] + "..." if len(content) > 200 else content
@@ -586,7 +609,7 @@ class SimplifiedChunkingTester:
             print(f"  {i:2d}. [{char_count:4d}字符] {content_preview}{quality_info}")
 
     def _output_json(self, result: Dict[str, Any]) -> None:
-        """输出JSON格式结果"""
+        """输出增强的JSON格式结果，包含详细的评分标准和检测逻辑信息"""
         # 转换chunks为可序列化的格式
         serializable_chunks = []
         for chunk in result['chunks']:
@@ -597,7 +620,7 @@ class SimplifiedChunkingTester:
                     'content': getattr(chunk, 'content', ''),
                     'character_count': getattr(chunk, 'character_count', 0),
                     'word_count': getattr(chunk, 'word_count', 0),
-                    'quality_score': getattr(chunk, 'quality_score', 0.0),
+                    'quality_score': getattr(chunk, 'quality_score', None),
                     'metadata': {}
                 }
 
@@ -615,15 +638,98 @@ class SimplifiedChunkingTester:
 
             serializable_chunks.append(chunk_data)
 
+        # 获取本次测试的实际配置信息
+        test_metadata = self._get_test_specific_metadata(result)
+
         output = {
             'preset_used': result['preset_used'],
             'processing_time': result['processing_time'],
             'statistics': result['statistics'],
             'validation': result['validation'],
-            'chunks': serializable_chunks
+            'chunks': serializable_chunks,
+            # 简化的元数据：只包含本次测试的实际信息
+            'metadata': test_metadata
         }
 
         print(json.dumps(output, ensure_ascii=False, indent=2))
+
+    def _get_test_specific_metadata(self, result: Dict[str, Any]) -> Dict[str, Any]:
+        """获取本次测试的实际配置和策略信息"""
+        try:
+            metadata = {}
+
+            # 1. 获取实际使用的质量评估策略信息
+            if self.engine and hasattr(self.engine, 'get_quality_assessment_info'):
+                quality_info = self.engine.get_quality_assessment_info()
+                if 'error' not in quality_info:
+                    current_strategy = quality_info.get('current_strategy', 'unknown')
+                    strategy_info = quality_info.get('strategy_info', {})
+
+                    metadata['quality_assessment'] = {
+                        'strategy_name': current_strategy,
+                        'enabled': quality_info.get('enabled', False),
+                        'config': strategy_info.get('config', {}),
+                        'preset': strategy_info.get('preset', 'unknown')
+                    }
+
+                    # 只有在启用时才添加评分计算方式
+                    if quality_info.get('enabled', False) and current_strategy != 'disabled':
+                        config = strategy_info.get('config', {})
+                        if current_strategy == 'basic':
+                            metadata['quality_assessment']['score_calculation'] = {
+                                'method': 'weighted_average',
+                                'length_weight': config.get('length_weight', 0.6),
+                                'completeness_weight': config.get('completeness_weight', 0.4),
+                                'formula': f"length_score * {config.get('length_weight', 0.6)} + completeness_score * {config.get('completeness_weight', 0.4)}"
+                            }
+                        elif current_strategy == 'strict':
+                            metadata['quality_assessment']['score_calculation'] = {
+                                'method': 'weighted_average',
+                                'length_weight': config.get('length_weight', 0.5),
+                                'completeness_weight': config.get('completeness_weight', 0.5),
+                                'formula': f"length_score * {config.get('length_weight', 0.5)} + completeness_score * {config.get('completeness_weight', 0.5)}"
+                            }
+                else:
+                    metadata['quality_assessment'] = {'error': quality_info.get('error')}
+            else:
+                metadata['quality_assessment'] = {'status': 'unavailable'}
+
+            # 2. 获取本次测试的分块配置
+            metadata['chunking_config'] = {
+                'chunk_size': self.config.get('chunk_size'),
+                'chunk_overlap': self.config.get('chunk_overlap'),
+                'min_chunk_size': self.config.get('min_chunk_size'),
+                'max_chunk_size': self.config.get('max_chunk_size'),
+                'preserve_context': self.config.get('preserve_context'),
+                'enable_quality_assessment': self.config.get('enable_quality_assessment'),
+                'quality_strategy': self.config.get('quality_strategy')
+            }
+
+            # 3. 获取validation的实际结果说明
+            validation = result.get('validation', {})
+            avg_score = validation.get('avg_quality_score')
+            metadata['validation_info'] = {
+                'method': 'average_non_null_scores',
+                'total_chunks_evaluated': validation.get('total_chunks', 0),
+                'chunks_with_scores': len([1 for chunk in result.get('chunks', [])
+                                         if self._get_chunk_quality_score(chunk) is not None]),
+                'avg_calculation': 'sum(non_null_scores) / count(non_null_scores)' if avg_score is not None else 'no_scores_available'
+            }
+
+            return metadata
+
+        except Exception as e:
+            return {'error': f'获取测试元数据失败: {e}'}
+
+    def _get_chunk_quality_score(self, chunk) -> Optional[float]:
+        """获取分块的质量评分"""
+        if isinstance(chunk, dict):
+            return chunk.get('quality_score')
+        else:
+            return getattr(chunk, 'quality_score', None)
+
+
+
 
     def run_performance_test(self, text_sizes: List[int] = None) -> None:
         """

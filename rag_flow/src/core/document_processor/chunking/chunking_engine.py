@@ -451,7 +451,7 @@ class ChunkingEngine:
                 if self.enable_quality_assessment:
                     chunk.quality_score = self._calculate_chunk_quality(chunk)
                 else:
-                    chunk.quality_score = 1.0  # 默认满分，不进行质量评估
+                    chunk.quality_score = None  # 未进行质量评估，不给出评分
                 
                 # 过滤过小的分块
                 if chunk.character_count >= self.min_chunk_size:

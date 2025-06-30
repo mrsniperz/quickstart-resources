@@ -997,11 +997,7 @@ def main():
 
     # 质量检测参数
     parser.add_argument('--quality-strategy', choices=['basic', 'strict', 'disabled'],
-                       default='basic', help='质量检测策略 (默认: basic)')
-    parser.add_argument('--enable-quality-check', action='store_true', default=True,
-                       help='启用质量检测 (默认: 启用)')
-    parser.add_argument('--disable-quality-check', action='store_true',
-                       help='禁用质量检测')
+                       default='basic', help='质量检测策略 (默认: basic，选择disabled可禁用检测)')
 
     # 输出参数
     parser.add_argument('--output-format', choices=['detailed', 'simple', 'json'],
@@ -1018,15 +1014,11 @@ def main():
         'max_chunk_size': args.max_chunk_size,
         'preserve_context': True
     }
-
+    
     # 处理质量检测配置
-    if args.disable_quality_check:
-        config['enable_quality_assessment'] = False
-        config['quality_strategy'] = 'disabled'
-    else:
-        config['enable_quality_assessment'] = args.enable_quality_check
-        config['quality_strategy'] = args.quality_strategy
-
+    config['quality_strategy'] = args.quality_strategy
+    config['enable_quality_assessment'] = (args.quality_strategy != 'disabled')
+    
     try:
         # 创建测试器
         tester = SimplifiedChunkingTester(config)

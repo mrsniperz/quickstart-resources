@@ -382,7 +382,8 @@ class ChunkingEngine:
         """
         try:
             config_manager = get_config_manager()
-            presets = config_manager.get_chunking_config('presets')
+            chunking_config = config_manager.get_chunking_config()
+            presets = chunking_config.get('presets', {})
             return list(presets.keys()) if presets else ['standard']
         except Exception as e:
             self.logger.error(f"获取预设列表失败: {e}")
@@ -400,7 +401,8 @@ class ChunkingEngine:
         """
         try:
             config_manager = get_config_manager()
-            presets = config_manager.get_chunking_config('presets')
+            chunking_config = config_manager.get_chunking_config()
+            presets = chunking_config.get('presets', {})
 
             if not presets or preset_name not in presets:
                 return {'error': f'预设不存在: {preset_name}'}

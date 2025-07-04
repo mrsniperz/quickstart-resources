@@ -317,11 +317,16 @@ class ConfigManager:
 
         Args:
             strategy (str, optional): 分块策略名称，如果不指定则返回全局配置
+                                     如果是'presets'，则返回预设配置部分
 
         Returns:
             dict: 分块配置
         """
-        if strategy:
+        if strategy == 'presets':
+            # 获取预设配置
+            return self.chunking_config.get('presets', {})
+            
+        elif strategy:
             # 获取特定策略的配置
             strategy_config = self.chunking_config.get(strategy, {})
             global_config = self.chunking_config.get('global', {})

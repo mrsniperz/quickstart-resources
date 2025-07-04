@@ -250,22 +250,60 @@ class SimplifiedChunkingTester:
         
         if self.engine:
             try:
-                presets = self.engine.get_available_presets()
+                # 获取预设配置
+                config_manager = None
+                try:
+                    from core.document_processor.config.config_manager import get_config_manager
+                    config_manager = get_config_manager()
+                except ImportError:
+                    try:
+                        from src.core.document_processor.config.config_manager import get_config_manager
+                        config_manager = get_config_manager()
+                    except ImportError:
+                        print("❌ 配置管理器导入失败，无法获取预设信息")
                 
-                if not presets:
-                    print("❌ 没有可用的预设配置")
-                    return
-                
-                for preset in presets:
-                    info = self.engine.get_preset_info(preset)
-                    print(f"\n🔸 {preset}")
-                    print(f"   描述: {info.get('description', '无描述')}")
-                    print(f"   分块大小: {info.get('chunk_size', '未知')}")
-                    print(f"   重叠大小: {info.get('chunk_overlap', '未知')}")
-                    print(f"   分隔符数量: {info.get('separators_count', '未知')}")
+                if config_manager:
+                    # 直接从配置文件获取预设配置
+                    chunking_config = config_manager.get_chunking_config()
+                    presets = chunking_config.get('presets', {})
                     
-                    if 'error' in info:
-                        print(f"   ❌ 错误: {info['error']}")
+                    if not presets:
+                        print("❌ 没有可用的预设配置")
+                        return
+                    
+                    for preset_name, preset_config in presets.items():
+                        print(f"\n🔸 {preset_name}")
+                        print(f"   描述: {preset_config.get('description', '无描述')}")
+                        print(f"   分块大小: {preset_config.get('chunk_size', '未知')}")
+                        print(f"   重叠大小: {preset_config.get('chunk_overlap', '未知')}")
+                        print(f"   分隔符数量: {len(preset_config.get('separators', []))}")
+                else:
+                    # 使用引擎的API获取预设
+                    presets = self.engine.get_available_presets()
+                    
+                    if not presets:
+                        print("❌ 没有可用的预设配置")
+                        return
+                    
+                    for preset in presets:
+                        # 跳过非预设配置项
+                        if preset in ['default_strategy', 'chunk_size', 'chunk_overlap', 
+                                    'min_chunk_size', 'max_chunk_size', 'preserve_context',
+                                    'enable_quality_assessment', 'quality_strategy']:
+                            continue
+                        
+                        try:
+                            info = self.engine.get_preset_info(preset)
+                            print(f"\n🔸 {preset}")
+                            print(f"   描述: {info.get('description', '无描述')}")
+                            print(f"   分块大小: {info.get('chunk_size', '未知')}")
+                            print(f"   重叠大小: {info.get('chunk_overlap', '未知')}")
+                            print(f"   分隔符数量: {info.get('separators_count', '未知')}")
+                            
+                            if 'error' in info:
+                                print(f"   ❌ 错误: {info['error']}")
+                        except Exception as e:
+                            print(f"获取预设信息失败: {e}")
                         
             except Exception as e:
                 print(f"❌ 获取预设信息失败: {e}")
@@ -727,9 +765,6 @@ class SimplifiedChunkingTester:
             return chunk.get('quality_score')
         else:
             return getattr(chunk, 'quality_score', None)
-
-
-
 
     def run_performance_test(self, text_sizes: List[int] = None) -> None:
         """

@@ -1,0 +1,86 @@
+{
+  "iterations": 2,
+  "total_files": 3,
+  "file_results": [
+    {
+      "file_path": "scripts/docling/test_output/batch_test/doc2.html",
+      "file_name": "doc2.html",
+      "file_size": 560,
+      "file_format": ".html",
+      "iterations": [
+        {
+          "iteration": 1,
+          "success": true,
+          "time": 0.17726707458496094,
+          "text_length": 133
+        },
+        {
+          "iteration": 2,
+          "success": true,
+          "time": 0.022058963775634766,
+          "text_length": 133
+        }
+      ],
+      "avg_time": 0.09966301918029785,
+      "min_time": 0.022058963775634766,
+      "max_time": 0.17726707458496094,
+      "success_rate": 1.0
+    },
+    {
+      "file_path": "scripts/docling/test_output/batch_test/doc1.md",
+      "file_name": "doc1.md",
+      "file_size": 113,
+      "file_format": ".md",
+      "iterations": [
+        {
+          "iteration": 1,
+          "success": true,
+          "time": 0.09075212478637695,
+          "text_length": 54
+        },
+        {
+          "iteration": 2,
+          "success": true,
+          "time": 0.6811859607696533,
+          "text_length": 54
+        }
+      ],
+      "avg_time": 0.38596904277801514,
+      "min_time": 0.09075212478637695,
+      "max_time": 0.6811859607696533,
+      "success_rate": 1.0
+    },
+    {
+      "file_path": "scripts/docling/test_output/batch_test/data.csv",
+      "file_name": "data.csv",
+      "file_size": 172,
+      "file_format": ".csv",
+      "iterations": [
+        {
+          "iteration": 1,
+          "success": true,
+          "time": 0.2584540843963623,
+          "text_length": 216
+        },
+        {
+          "iteration": 2,
+          "success": true,
+          "time": 0.06614494323730469,
+          "text_length": 216
+        }
+      ],
+      "avg_time": 0.1622995138168335,
+      "min_time": 0.06614494323730469,
+      "max_time": 0.2584540843963623,
+      "success_rate": 1.0
+    }
+  ],
+  "summary": {
+    "overall_success_rate": 1.0,
+    "avg_processing_time": 0.21597719192504883,
+    "min_processing_time": 0.022058963775634766,
+    "max_processing_time": 0.6811859607696533,
+    "total_successful_runs": 6,
+    "total_attempts": 6
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "total_errors": 1,
+  "error_types": {
+    "FileNotFoundError": 1
+  },
+  "error_patterns": {
+    "other": 1
+  },
+  "file_format_errors": {
+    "": [
+      "文件不存在"
+    ]
+  },
+  "recommendations": []
+}

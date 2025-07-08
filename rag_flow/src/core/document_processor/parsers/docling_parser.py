@@ -173,10 +173,7 @@ class DoclingParser:
         self.custom_backend = self.config.get('custom_backend', None)
         self.allowed_formats = self.config.get('allowed_formats', None)
 
-        # 初始化Docling转换器
-        self._init_converter()
-        
-        # 支持的文件格式映射
+        # 支持的文件格式映射（必须在_init_converter之前设置）
         self.supported_formats = {
             '.pdf': InputFormat.PDF,
             '.docx': InputFormat.DOCX,
@@ -199,6 +196,9 @@ class DoclingParser:
             '.pptx': InputFormat.PPTX,
             '.ppt': InputFormat.PPTX,  # 通过pptx处理
         }
+
+        # 初始化Docling转换器（必须在supported_formats设置之后）
+        self._init_converter()
     
     def _init_converter(self):
         """初始化Docling文档转换器"""
@@ -339,11 +339,13 @@ class DoclingParser:
             self.logger.info(f"开始使用Docling解析文档: {file_path}")
             
             # 执行转换
-            conversion_result = self.converter.convert(
-                str(file_path),
-                max_num_pages=self.max_num_pages,
-                max_file_size=self.max_file_size
-            )
+            convert_kwargs = {'source': str(file_path)}
+            if self.max_num_pages is not None:
+                convert_kwargs['max_num_pages'] = self.max_num_pages
+            if self.max_file_size is not None:
+                convert_kwargs['max_file_size'] = self.max_file_size
+
+            conversion_result = self.converter.convert(**convert_kwargs)
             
             # 检查转换状态
             if conversion_result.status.name != "SUCCESS":
@@ -406,11 +408,13 @@ class DoclingParser:
             document_stream = DocumentStream(name=filename, stream=stream)
             
             # 执行转换
-            conversion_result = self.converter.convert(
-                document_stream,
-                max_num_pages=self.max_num_pages,
-                max_file_size=self.max_file_size
-            )
+            convert_kwargs = {'source': document_stream}
+            if self.max_num_pages is not None:
+                convert_kwargs['max_num_pages'] = self.max_num_pages
+            if self.max_file_size is not None:
+                convert_kwargs['max_file_size'] = self.max_file_size
+
+            conversion_result = self.converter.convert(**convert_kwargs)
             
             # 检查转换状态
             if conversion_result.status.name != "SUCCESS":

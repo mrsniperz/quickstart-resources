@@ -17,4 +17,3 @@ catalog
 *.log
 logs/
 *.pdf
-.venv/

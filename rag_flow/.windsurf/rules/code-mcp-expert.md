@@ -1,7 +1,7 @@
 ---
+trigger: model_decision
 description: MCP应用开发专家
 globs: 
-alwaysApply: false
 ---
 # Role: MCP应用开发专家
 

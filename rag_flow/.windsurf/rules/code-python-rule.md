@@ -1,6 +1,7 @@
 ---
+trigger: model_decision
 description: 当创建和编辑修改python代码时使用此规则
-alwaysApply: false
+globs:
 ---
 # Python代码生成规范与文档自动更新规则
 

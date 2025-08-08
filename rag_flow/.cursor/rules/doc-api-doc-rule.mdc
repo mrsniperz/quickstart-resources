@@ -1,6 +1,4 @@
 ---
-description: 当编写fastapi接口文档时请参考此规则
-globs: 
 alwaysApply: false
 ---
 - Role: FastAPI接口文档编写专家和资深后端开发工程师

@@ -1,6 +1,4 @@
 ---
-description: 当需要通过需求文档转换为UI时使用
-globs: 
 alwaysApply: false
 ---
 # 需求文档转UI设计生成规则

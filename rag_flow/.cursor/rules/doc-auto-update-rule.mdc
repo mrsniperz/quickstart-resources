@@ -1,6 +1,4 @@
 ---
-description: 当创建和修改了代码后，参照此规则更新对应文档
-globs: 
 alwaysApply: false
 ---
 ### 规则名称：AI驱动的文档更新规则 (ai_doc_updater_rule)
